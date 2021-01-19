@@ -178,11 +178,11 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             else:
                 readline.parse_and_bind('tab: complete')
 
-        if hasattr(stream, 'pipe'):
-            self.wpan_api.queue_wait_for_prop(SPINEL.PROP_LAST_STATUS,
-                                              SPINEL.HEADER_ASYNC)
-        self.prop_set_value(SPINEL.PROP_IPv6_ICMP_PING_OFFLOAD, 1)
-        self.prop_set_value(SPINEL.PROP_THREAD_RLOC16_DEBUG_PASSTHRU, 1)
+        #if hasattr(stream, 'pipe'):
+            #self.wpan_api.queue_wait_for_prop(SPINEL.PROP_LAST_STATUS,
+            #                                  SPINEL.HEADER_ASYNC)
+        #self.prop_set_value(SPINEL.PROP_IPv6_ICMP_PING_OFFLOAD, 1)
+        #self.prop_set_value(SPINEL.PROP_THREAD_RLOC16_DEBUG_PASSTHRU, 1)
 
     command_names = [
         # Shell commands
@@ -2463,10 +2463,12 @@ def main():
         cls = type(vendor_ext.VendorSpinelCliCmd.__name__,
                    (SpinelCliCmd, vendor_ext.VendorSpinelCliCmd), {})
         shell = cls(stream, nodeid=options.nodeid, vendor_module=vendor_module)
+        print(" no exception occurred ")
     except ImportError:
         shell = SpinelCliCmd(stream,
                              nodeid=options.nodeid,
                              vendor_module=vendor_module)
+        print(" in exception")
 
     try:
         shell.cmdloop()
