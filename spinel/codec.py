@@ -41,9 +41,8 @@ from spinel.const import SPINEL_LAST_STATUS_MAP
 from spinel.hdlc import Hdlc
 
 FEATURE_USE_HDLC = 1
-FEATURE_USE_SLACC = 1
 
-TIMEOUT_PROP = 2
+TIMEOUT_PROP = 5
 
 #=========================================
 #   SpinelCodec
@@ -426,7 +425,7 @@ class SpinelPropertyHandler(SpinelCodec):
         return self.parse_i(payload)[0]
 
     def PROTOCOL_VERSION(self, _wpan_api, payload):
-        pass
+        return self.parse_U(payload)
 
     def NCP_VERSION(self, _, payload):
         return self.parse_U(payload)
@@ -434,41 +433,8 @@ class SpinelPropertyHandler(SpinelCodec):
     def INTERFACE_TYPE(self, _, payload):
         return self.parse_i(payload)[0]
 
-    def VENDOR_ID(self, _, payload):
-        return self.parse_i(payload)[0]
-
-    def CAPS(self, _wpan_api, payload):
-        return self.parse_fields(payload, 'A(i)')
-
-    def INTERFACE_COUNT(self, _, payload):
-        return self.parse_C(payload)
-
-    def POWER_STATE(self, _, payload):
-        return self.parse_C(payload)
-
     def HWADDR(self, _, payload):
         return self.parse_E(payload)
-
-    def LOCK(self, _, payload):
-        return self.parse_b(payload)
-
-    def HBO_MEM_MAX(self, _, payload):
-        return self.parse_L(payload)
-
-    def HBO_BLOCK_MAX(self, _, payload):
-        return self.parse_S(payload)
-
-    def PHY_ENABLED(self, _, payload):
-        return self.parse_b(payload)
-
-    def PHY_CHAN(self, _, payload):
-        return self.parse_C(payload)
-
-    def PHY_CHAN_SUPPORTED(self, _wpan_api, payload):
-        pass
-
-    def PHY_FREQ(self, _, payload):
-        return self.parse_L(payload)
 
     def PHY_CCA_THRESHOLD(self, _, payload):
         return self.parse_c(payload)
@@ -476,59 +442,8 @@ class SpinelPropertyHandler(SpinelCodec):
     def PHY_TX_POWER(self, _, payload):
         return self.parse_c(payload)
 
-    def PHY_RSSI(self, _, payload):
-        return self.parse_c(payload)
-
-    def MAC_SCAN_STATE(self, _, payload):
-        return self.parse_C(payload)
-
-    def MAC_SCAN_MASK(self, _, payload):
-        return self.parse_U(payload)
-
-    def MAC_SCAN_PERIOD(self, _, payload):
-        return self.parse_S(payload)
-
-    def MAC_SCAN_BEACON(self, _, payload):
-        return self.parse_U(payload)
-
-    def MAC_15_4_LADDR(self, _, payload):
-        return self.parse_E(payload)
-
-    def MAC_15_4_SADDR(self, _, payload):
-        return self.parse_S(payload)
-
     def MAC_15_4_PANID(self, _, payload):
         return self.parse_S(payload)
-
-    def MAC_FILTER_MODE(self, _, payload):
-        return self.parse_C(payload)
-
-    def MAC_RAW_STREAM_ENABLED(self, _, payload):
-        return self.parse_b(payload)
-
-    def MAC_ALLOWLIST(self, _, payload):
-        pass
-
-    def MAC_ALLOWLIST_ENABLED(self, _, payload):
-        return self.parse_b(payload)
-
-    def MAC_DENYLIST(self, _, payload):
-        pass
-
-    def MAC_DENYLIST_ENABLED(self, _, payload):
-        return self.parse_b(payload)
-
-    def MAC_FIXED_RSS(self, _, payload):
-        pass
-
-    def MAC_MAX_RETRY_NUMBER_DIRECT(self, _, payload):
-        return self.parse_C(payload)
-
-    def MAC_MAX_RETRY_NUMBER_INDIRECT(self, _, payload):
-        return self.parse_C(payload)
-
-    def NET_SAVED(self, _, payload):
-        return self.parse_b(payload)
 
     def NET_IF_UP(self, _, payload):
         return self.parse_b(payload)
@@ -542,49 +457,61 @@ class SpinelPropertyHandler(SpinelCodec):
     def NET_NETWORK_NAME(self, _, payload):
         return self.parse_U(payload)
 
-    def NET_XPANID(self, _, payload):
+    def PROP_PHY_REGION(self, _, payload):
+        return self.parse_C(payload)
+
+    def PROP_PHY_MODE_ID(self, _, payload):
+        return self.parse_C(payload)
+
+    def PROP_PHY_UNICAST_CHANNEL_LIST(self, _, payload):
         return self.parse_D(payload)
 
-    def NET_MASTER_KEY(self, _, payload):
+    def PROP_PHY_BROADCAST_CHANNEL_LIST(self, _, payload):
         return self.parse_D(payload)
 
-    def NET_KEY_SEQUENCE_COUNTER(self, _, payload):
-        return self.parse_L(payload)
-
-    def NET_PARTITION_ID(self, _, payload):
-        return self.parse_L(payload)
-
-    def NET_KEY_SWITCH_GUARDTIME(self, _, payload):
-        return self.parse_L(payload)
-
-    def THREAD_LEADER_ADDR(self, _, payload):
-        return self.parse_6(payload)
-
-    def THREAD_PARENT(self, _wpan_api, payload):
-        return self.parse_fields(payload, "ES")
-
-    def THREAD_CHILD_TABLE(self, _, payload):
-        return self.parse_fields(payload, "A(t(ESLLCCcCc))")
-
-    def THREAD_LEADER_RID(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_LEADER_WEIGHT(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_LOCAL_LEADER_WEIGHT(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_NETWORK_DATA(self, _, payload):
+    def PROP_PHY_ASYNC_CHANNEL_LIST(self, _, payload):
         return self.parse_D(payload)
 
-    def THREAD_NETWORK_DATA_VERSION(self, _wpan_api, payload):
+    def PROP_NET_STATE(self, _, payload):
         return self.parse_C(payload)
 
-    def THREAD_STABLE_NETWORK_DATA(self, _wpan_api, payload):
-        pass
+    def PROP_PARENT_LIST(self, _, payload):
+        return self.parse_D(payload)
 
-    def THREAD_STABLE_NETWORK_DATA_VERSION(self, _wpan_api, payload):
+    def PROP_ROUTING_COST(self, _, payload):
+        return self.parse_C(payload)
+
+    def PROP_ROUTING_TABLE_UPDATE(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_DODAG_ROUTE(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_PHY_CH_SPACING(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_PHY_CHO_CENTER_FREQ(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_UC_DWELL_INTERVAL(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_BC_DWELL_INTERVAL(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_BC_INTERVAL(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_UC_CHANNEL_FUNCTION(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_BC_CHANNEL_FUNCTION(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_MAC_FILTER_LIST(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_MAC_FILTER_MODE(self, _, payload):
         return self.parse_C(payload)
 
     def __init__(self):
@@ -630,126 +557,16 @@ class SpinelPropertyHandler(SpinelCodec):
             self.handle_prefix_change(payload)
             self.__queue_prefix.task_done()
 
-    def THREAD_ON_MESH_NETS(self, wpan_api, payload):
-        if FEATURE_USE_SLACC:
-            # Kick prefix handler thread to allow serial rx thread to work.
-            self.__queue_prefix.put_nowait((wpan_api, payload))
-
-        return self.parse_D(payload)
-
-    def THREAD_LOCAL_ROUTES(self, _wpan_api, payload):
-        pass
-
-    def THREAD_ASSISTING_PORTS(self, _wpan_api, payload):
-        pass
-
-    def THREAD_ALLOW_LOCAL_NET_DATA_CHANGE(self, _, payload):
-        return self.parse_b(payload)
-
-    def THREAD_MODE(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_CHILD_COUNT_MAX(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_CHILD_TIMEOUT(self, _, payload):
-        return self.parse_L(payload)
-
-    def THREAD_RLOC16(self, _, payload):
-        return self.parse_S(payload)
-
-    def THREAD_ROUTER_UPGRADE_THRESHOLD(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_ROUTER_DOWNGRADE_THRESHOLD(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_ROUTER_SELECTION_JITTER(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_NEIGHBOR_TABLE(self, _, payload):
-        return self.parse_fields(payload, 'A(t(ESLCcCbLL))')
-
-    def THREAD_CONTEXT_REUSE_DELAY(self, _, payload):
-        return self.parse_L(payload)
-
-    def THREAD_NETWORK_ID_TIMEOUT(self, _, payload):
-        return self.parse_C(payload)
-
-    def THREAD_ACTIVE_ROUTER_IDS(self, _, payload):
-        return self.parse_D(payload)
-
-    def THREAD_RLOC16_DEBUG_PASSTHRU(self, _, payload):
-        return self.parse_b(payload)
-
-    def MESHCOP_JOINER_ENABLE(self, _, payload):
-        return self.parse_b(payload)
-
-    def MESHCOP_JOINER_CREDENTIAL(self, _, payload):
-        return self.parse_D(payload)
-
-    def MESHCOP_JOINER_URL(self, _, payload):
-        return self.parse_U(payload)
-
-    def MESHCOP_BORDER_AGENT_ENABLE(self, _, payload):
-        return self.parse_b(payload)
-
-    def IPV6_LL_ADDR(self, _, payload):
-        return self.parse_6(payload)
-
-    def IPV6_ML_ADDR(self, _, payload):
-        return self.parse_6(payload)
-
-    def IPV6_ML_PREFIX(self, _, payload):
-        return self.parse_E(payload)
 
     def IPV6_ADDRESS_TABLE(self, _, payload):
         return self.parse_D(payload)
 
-    def IPV6_ROUTE_TABLE(self, _, payload):
-        return self.parse_D(payload)
-
-    def IPv6_ICMP_PING_OFFLOAD(self, _, payload):
-        return self.parse_b(payload)
-
-    def STREAM_DEBUG(self, _, payload):
-        return self.parse_D(payload)
-
-    def STREAM_RAW(self, _, payload):
+    def MULTICAST_LIST(self, _, payload):
         return self.parse_D(payload)
 
     def STREAM_NET(self, _, payload):
         return self.parse_d(payload)
 
-    def STREAM_NET_INSECURE(self, _, payload):
-        return self.parse_d(payload)
-
-    def STREAM_LOG(self, _, payload):
-        return self.parse_fields(payload, "UD")
-
-    def PIB_PHY_CHANNELS_SUPPORTED(self, _wpan_api, payload):
-        pass
-
-    def PIB_MAC_PROMISCUOUS_MODE(self, _wpan_api, payload):
-        pass
-
-    def PIB_MAC_SECURITY_ENABLED(self, _wpan_api, payload):
-        pass
-
-    def MSG_BUFFER_COUNTERS(self, _wpan_api, payload):
-        return self.parse_fields(payload, "SSSSSSSSSSSSSSSS")
-
-    def ALL_MAC_COUNTERS(self, _wpan_api, payload):
-        return self.parse_fields(payload, "t(A(L))t(A(L))")
-
-    def MLE_COUNTERS(self, _wpan_api, payload):
-        return self.parse_fields(payload, "SSSSSSSSS")
-
-    def MAC_RETRY_HISTOGRAM(self, _wpan_api, payload):
-        return self.parse_fields(payload, "t(A(L))t(A(L))")
-
-    def NEST_STREAM_MFG(self, _wpan_api, payload):
-        return self.parse_U(payload)
 
 
 #=========================================
@@ -763,11 +580,6 @@ class SpinelCommandHandler(SpinelCodec):
         if prop_id in SPINEL_PROP_DISPATCH:
             handler = SPINEL_PROP_DISPATCH[prop_id]
             prop_name = handler.__name__
-
-            # Skip any VALUE_INSERTED(CHILD_TABLE) or VALUE_REMOVED(CHILD_TABLE)
-            if prop_id == SPINEL.PROP_THREAD_CHILD_TABLE:
-                if name in ["INSERTED", "REMOVED"]:
-                    return
 
             prop_value = handler(wpan_api, payload[prop_len:])
 
@@ -833,70 +645,14 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.NCP_VERSION,
     SPINEL.PROP_INTERFACE_TYPE:
         WPAN_PROP_HANDLER.INTERFACE_TYPE,
-    SPINEL.PROP_VENDOR_ID:
-        WPAN_PROP_HANDLER.VENDOR_ID,
-    SPINEL.PROP_CAPS:
-        WPAN_PROP_HANDLER.CAPS,
-    SPINEL.PROP_INTERFACE_COUNT:
-        WPAN_PROP_HANDLER.INTERFACE_COUNT,
-    SPINEL.PROP_POWER_STATE:
-        WPAN_PROP_HANDLER.POWER_STATE,
     SPINEL.PROP_HWADDR:
         WPAN_PROP_HANDLER.HWADDR,
-    SPINEL.PROP_LOCK:
-        WPAN_PROP_HANDLER.LOCK,
-    SPINEL.PROP_HBO_MEM_MAX:
-        WPAN_PROP_HANDLER.HBO_MEM_MAX,
-    SPINEL.PROP_HBO_BLOCK_MAX:
-        WPAN_PROP_HANDLER.HBO_BLOCK_MAX,
-    SPINEL.PROP_PHY_ENABLED:
-        WPAN_PROP_HANDLER.PHY_ENABLED,
-    SPINEL.PROP_PHY_CHAN:
-        WPAN_PROP_HANDLER.PHY_CHAN,
-    SPINEL.PROP_PHY_CHAN_SUPPORTED:
-        WPAN_PROP_HANDLER.PHY_CHAN_SUPPORTED,
-    SPINEL.PROP_PHY_FREQ:
-        WPAN_PROP_HANDLER.PHY_FREQ,
     SPINEL.PROP_PHY_CCA_THRESHOLD:
         WPAN_PROP_HANDLER.PHY_CCA_THRESHOLD,
     SPINEL.PROP_PHY_TX_POWER:
         WPAN_PROP_HANDLER.PHY_TX_POWER,
-    SPINEL.PROP_PHY_RSSI:
-        WPAN_PROP_HANDLER.PHY_RSSI,
-    SPINEL.PROP_MAC_SCAN_STATE:
-        WPAN_PROP_HANDLER.MAC_SCAN_STATE,
-    SPINEL.PROP_MAC_SCAN_MASK:
-        WPAN_PROP_HANDLER.MAC_SCAN_MASK,
-    SPINEL.PROP_MAC_SCAN_PERIOD:
-        WPAN_PROP_HANDLER.MAC_SCAN_PERIOD,
-    SPINEL.PROP_MAC_SCAN_BEACON:
-        WPAN_PROP_HANDLER.MAC_SCAN_BEACON,
-    SPINEL.PROP_MAC_15_4_LADDR:
-        WPAN_PROP_HANDLER.MAC_15_4_LADDR,
-    SPINEL.PROP_MAC_15_4_SADDR:
-        WPAN_PROP_HANDLER.MAC_15_4_SADDR,
     SPINEL.PROP_MAC_15_4_PANID:
         WPAN_PROP_HANDLER.MAC_15_4_PANID,
-    SPINEL.PROP_MAC_RAW_STREAM_ENABLED:
-        WPAN_PROP_HANDLER.MAC_RAW_STREAM_ENABLED,
-    SPINEL.PROP_MAC_FILTER_MODE:
-        WPAN_PROP_HANDLER.MAC_FILTER_MODE,
-    SPINEL.PROP_MAC_ALLOWLIST:
-        WPAN_PROP_HANDLER.MAC_ALLOWLIST,
-    SPINEL.PROP_MAC_ALLOWLIST_ENABLED:
-        WPAN_PROP_HANDLER.MAC_ALLOWLIST_ENABLED,
-    SPINEL.PROP_MAC_DENYLIST:
-        WPAN_PROP_HANDLER.MAC_DENYLIST,
-    SPINEL.PROP_MAC_DENYLIST_ENABLED:
-        WPAN_PROP_HANDLER.MAC_DENYLIST_ENABLED,
-    SPINEL.PROP_MAC_FIXED_RSS:
-        WPAN_PROP_HANDLER.MAC_FIXED_RSS,
-    SPINEL.PROP_MAC_MAX_RETRY_NUMBER_DIRECT:
-        WPAN_PROP_HANDLER.MAC_MAX_RETRY_NUMBER_DIRECT,
-    SPINEL.PROP_MAC_MAX_RETRY_NUMBER_INDIRECT:
-        WPAN_PROP_HANDLER.MAC_MAX_RETRY_NUMBER_INDIRECT,
-    SPINEL.PROP_NET_SAVED:
-        WPAN_PROP_HANDLER.NET_SAVED,
     SPINEL.PROP_NET_IF_UP:
         WPAN_PROP_HANDLER.NET_IF_UP,
     SPINEL.PROP_NET_STACK_UP:
@@ -905,114 +661,50 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.NET_ROLE,
     SPINEL.PROP_NET_NETWORK_NAME:
         WPAN_PROP_HANDLER.NET_NETWORK_NAME,
-    SPINEL.PROP_NET_XPANID:
-        WPAN_PROP_HANDLER.NET_XPANID,
-    SPINEL.PROP_NET_MASTER_KEY:
-        WPAN_PROP_HANDLER.NET_MASTER_KEY,
-    SPINEL.PROP_NET_KEY_SEQUENCE_COUNTER:
-        WPAN_PROP_HANDLER.NET_KEY_SEQUENCE_COUNTER,
-    SPINEL.PROP_NET_PARTITION_ID:
-        WPAN_PROP_HANDLER.NET_PARTITION_ID,
-    SPINEL.PROP_NET_KEY_SWITCH_GUARDTIME:
-        WPAN_PROP_HANDLER.NET_KEY_SWITCH_GUARDTIME,
-    SPINEL.PROP_THREAD_LEADER_ADDR:
-        WPAN_PROP_HANDLER.THREAD_LEADER_ADDR,
-    SPINEL.PROP_THREAD_PARENT:
-        WPAN_PROP_HANDLER.THREAD_PARENT,
-    SPINEL.PROP_THREAD_CHILD_TABLE:
-        WPAN_PROP_HANDLER.THREAD_CHILD_TABLE,
-    SPINEL.PROP_THREAD_LEADER_RID:
-        WPAN_PROP_HANDLER.THREAD_LEADER_RID,
-    SPINEL.PROP_THREAD_LEADER_WEIGHT:
-        WPAN_PROP_HANDLER.THREAD_LEADER_WEIGHT,
-    SPINEL.PROP_THREAD_LOCAL_LEADER_WEIGHT:
-        WPAN_PROP_HANDLER.THREAD_LOCAL_LEADER_WEIGHT,
-    SPINEL.PROP_THREAD_NETWORK_DATA:
-        WPAN_PROP_HANDLER.THREAD_NETWORK_DATA,
-    SPINEL.PROP_THREAD_NETWORK_DATA_VERSION:
-        WPAN_PROP_HANDLER.THREAD_NETWORK_DATA_VERSION,
-    SPINEL.PROP_THREAD_STABLE_NETWORK_DATA:
-        WPAN_PROP_HANDLER.THREAD_STABLE_NETWORK_DATA,
-    SPINEL.PROP_THREAD_STABLE_NETWORK_DATA_VERSION:
-        WPAN_PROP_HANDLER.THREAD_STABLE_NETWORK_DATA_VERSION,
-    SPINEL.PROP_THREAD_ON_MESH_NETS:
-        WPAN_PROP_HANDLER.THREAD_ON_MESH_NETS,
-    SPINEL.PROP_THREAD_LOCAL_ROUTES:
-        WPAN_PROP_HANDLER.THREAD_LOCAL_ROUTES,
-    SPINEL.PROP_THREAD_ASSISTING_PORTS:
-        WPAN_PROP_HANDLER.THREAD_ASSISTING_PORTS,
-    SPINEL.PROP_THREAD_ALLOW_LOCAL_NET_DATA_CHANGE:
-        WPAN_PROP_HANDLER.THREAD_ALLOW_LOCAL_NET_DATA_CHANGE,
-    SPINEL.PROP_THREAD_MODE:
-        WPAN_PROP_HANDLER.THREAD_MODE,
-    SPINEL.PROP_THREAD_CHILD_COUNT_MAX:
-        WPAN_PROP_HANDLER.THREAD_CHILD_COUNT_MAX,
-    SPINEL.PROP_THREAD_CHILD_TIMEOUT:
-        WPAN_PROP_HANDLER.THREAD_CHILD_TIMEOUT,
-    SPINEL.PROP_THREAD_RLOC16:
-        WPAN_PROP_HANDLER.THREAD_RLOC16,
-    SPINEL.PROP_THREAD_ROUTER_UPGRADE_THRESHOLD:
-        WPAN_PROP_HANDLER.THREAD_ROUTER_UPGRADE_THRESHOLD,
-    SPINEL.PROP_THREAD_ROUTER_DOWNGRADE_THRESHOLD:
-        WPAN_PROP_HANDLER.THREAD_ROUTER_DOWNGRADE_THRESHOLD,
-    SPINEL.PROP_THREAD_ROUTER_SELECTION_JITTER:
-        WPAN_PROP_HANDLER.THREAD_ROUTER_SELECTION_JITTER,
-    SPINEL.PROP_THREAD_CONTEXT_REUSE_DELAY:
-        WPAN_PROP_HANDLER.THREAD_CONTEXT_REUSE_DELAY,
-    SPINEL.PROP_THREAD_NETWORK_ID_TIMEOUT:
-        WPAN_PROP_HANDLER.THREAD_NETWORK_ID_TIMEOUT,
-    SPINEL.PROP_THREAD_ACTIVE_ROUTER_IDS:
-        WPAN_PROP_HANDLER.THREAD_ACTIVE_ROUTER_IDS,
-    SPINEL.PROP_THREAD_RLOC16_DEBUG_PASSTHRU:
-        WPAN_PROP_HANDLER.THREAD_RLOC16_DEBUG_PASSTHRU,
-    SPINEL.PROP_THREAD_NEIGHBOR_TABLE:
-        WPAN_PROP_HANDLER.THREAD_NEIGHBOR_TABLE,
-    SPINEL.PROP_MESHCOP_JOINER_ENABLE:
-        WPAN_PROP_HANDLER.MESHCOP_JOINER_ENABLE,
-    SPINEL.PROP_MESHCOP_JOINER_CREDENTIAL:
-        WPAN_PROP_HANDLER.MESHCOP_JOINER_CREDENTIAL,
-    SPINEL.PROP_MESHCOP_JOINER_URL:
-        WPAN_PROP_HANDLER.MESHCOP_JOINER_URL,
-    SPINEL.PROP_MESHCOP_BORDER_AGENT_ENABLE:
-        WPAN_PROP_HANDLER.MESHCOP_BORDER_AGENT_ENABLE,
-    SPINEL.PROP_IPV6_LL_ADDR:
-        WPAN_PROP_HANDLER.IPV6_LL_ADDR,
-    SPINEL.PROP_IPV6_ML_ADDR:
-        WPAN_PROP_HANDLER.IPV6_ML_ADDR,
-    SPINEL.PROP_IPV6_ML_PREFIX:
-        WPAN_PROP_HANDLER.IPV6_ML_PREFIX,
+    SPINEL.PROP_PHY_REGION:
+        WPAN_PROP_HANDLER.PROP_PHY_REGION,
+    SPINEL.PROP_PHY_MODE_ID:
+        WPAN_PROP_HANDLER.PROP_PHY_MODE_ID,
+    SPINEL.PROP_PHY_UNICAST_CHANNEL_LIST:
+        WPAN_PROP_HANDLER.PROP_PHY_UNICAST_CHANNEL_LIST,
+    SPINEL.PROP_PHY_BROADCAST_CHANNEL_LIST:
+        WPAN_PROP_HANDLER.PROP_PHY_BROADCAST_CHANNEL_LIST,
+    SPINEL.PROP_PHY_ASYNC_CHANNEL_LIST:
+        WPAN_PROP_HANDLER.PROP_PHY_ASYNC_CHANNEL_LIST,
+    SPINEL.PROP_NET_STATE:
+        WPAN_PROP_HANDLER.PROP_NET_STATE,
+    SPINEL.PROP_PARENT_LIST:
+        WPAN_PROP_HANDLER.PROP_PARENT_LIST,
+    SPINEL.PROP_ROUTING_COST:
+        WPAN_PROP_HANDLER.PROP_ROUTING_COST,
+    SPINEL.PROP_ROUTING_TABLE_UPDATE:
+        WPAN_PROP_HANDLER.PROP_ROUTING_TABLE_UPDATE,
+    SPINEL.PROP_DODAG_ROUTE:
+        WPAN_PROP_HANDLER.PROP_DODAG_ROUTE,
+    SPINEL.PROP_PHY_CH_SPACING:
+        WPAN_PROP_HANDLER.PROP_PHY_CH_SPACING,
+    SPINEL.PROP_PHY_CHO_CENTER_FREQ:
+        WPAN_PROP_HANDLER.PROP_PHY_CHO_CENTER_FREQ,
+    SPINEL.PROP_MAC_UC_DWELL_INTERVAL:
+        WPAN_PROP_HANDLER.PROP_MAC_UC_DWELL_INTERVAL,
+    SPINEL.PROP_MAC_BC_DWELL_INTERVAL:
+        WPAN_PROP_HANDLER.PROP_MAC_BC_DWELL_INTERVAL,
+    SPINEL.PROP_MAC_BC_INTERVAL:
+        WPAN_PROP_HANDLER.PROP_MAC_BC_INTERVAL,
+    SPINEL.PROP_MAC_UC_CHANNEL_FUNCTION:
+        WPAN_PROP_HANDLER.PROP_MAC_UC_CHANNEL_FUNCTION,
+    SPINEL.PROP_MAC_BC_CHANNEL_FUNCTION:
+        WPAN_PROP_HANDLER.PROP_MAC_BC_CHANNEL_FUNCTION,
+    SPINEL.PROP_MAC_MAC_FILTER_LIST:
+        WPAN_PROP_HANDLER.PROP_MAC_MAC_FILTER_LIST,
+    SPINEL.PROP_MAC_FILTER_MODE:
+        WPAN_PROP_HANDLER.PROP_MAC_FILTER_MODE,
     SPINEL.PROP_IPV6_ADDRESS_TABLE:
         WPAN_PROP_HANDLER.IPV6_ADDRESS_TABLE,
-    SPINEL.PROP_IPV6_ROUTE_TABLE:
-        WPAN_PROP_HANDLER.IPV6_ROUTE_TABLE,
-    SPINEL.PROP_IPv6_ICMP_PING_OFFLOAD:
-        WPAN_PROP_HANDLER.IPv6_ICMP_PING_OFFLOAD,
-    SPINEL.PROP_STREAM_DEBUG:
-        WPAN_PROP_HANDLER.STREAM_DEBUG,
-    SPINEL.PROP_STREAM_RAW:
-        WPAN_PROP_HANDLER.STREAM_RAW,
+    SPINEL.PROP_MULTICAST_LIST:
+        WPAN_PROP_HANDLER.MULTICAST_LIST,
     SPINEL.PROP_STREAM_NET:
         WPAN_PROP_HANDLER.STREAM_NET,
-    SPINEL.PROP_STREAM_NET_INSECURE:
-        WPAN_PROP_HANDLER.STREAM_NET_INSECURE,
-    SPINEL.PROP_STREAM_LOG:
-        WPAN_PROP_HANDLER.STREAM_LOG,
-    SPINEL.PROP_PIB_15_4_PHY_CHANNELS_SUPPORTED:
-        WPAN_PROP_HANDLER.PIB_PHY_CHANNELS_SUPPORTED,
-    SPINEL.PROP_PIB_15_4_MAC_PROMISCUOUS_MODE:
-        WPAN_PROP_HANDLER.PIB_MAC_PROMISCUOUS_MODE,
-    SPINEL.PROP_PIB_15_4_MAC_SECURITY_ENABLED:
-        WPAN_PROP_HANDLER.PIB_MAC_SECURITY_ENABLED,
-    SPINEL.PROP_MSG_BUFFER_COUNTERS:
-        WPAN_PROP_HANDLER.MSG_BUFFER_COUNTERS,
-    SPINEL.PROP_CNTR_ALL_MAC_COUNTERS:
-        WPAN_PROP_HANDLER.ALL_MAC_COUNTERS,
-    SPINEL.PROP_CNTR_MLE_COUNTERS:
-        WPAN_PROP_HANDLER.MLE_COUNTERS,
-    SPINEL.PROP_CNTR_MAC_RETRY_HISTOGRAM:
-        WPAN_PROP_HANDLER.MAC_RETRY_HISTOGRAM,
-    SPINEL.PROP_NEST_STREAM_MFG:
-        WPAN_PROP_HANDLER.NEST_STREAM_MFG
 }
 
 
@@ -1232,7 +924,18 @@ class WpanApi(SpinelCodec):
         pkt_len += 2  # Increment to include length word
         pay += pkt  # Append packet after length
 
-        self.transact(SPINEL.CMD_PROP_VALUE_SET, pay)
+        self.transact(SPINEL.CMD_PROP_VALUE_SET, pay, SPINEL.HEADER_ASYNC)
+
+    def chlist_send(self, pkt, chlist):
+        pay = self.encode_i(chlist)
+
+        pkt_len = len(pkt)
+        pay += pack("<H", pkt_len)  # Start with length of chlist
+
+        pkt_len += 2  # Increment to include length word
+        pay += pkt  # Append packet after length
+
+        self.transact(SPINEL.CMD_PROP_VALUE_SET, pay, SPINEL.HEADER_ASYNC)
 
     def cmd_reset(self):
         self.queue_wait_prepare(None, SPINEL.HEADER_ASYNC)
@@ -1240,6 +943,10 @@ class WpanApi(SpinelCodec):
         result = self.queue_wait_for_prop(SPINEL.PROP_LAST_STATUS,
                                           SPINEL.HEADER_ASYNC)
         return (result is not None and result.value == 114)
+
+    def cmd_nverase(self):
+        self.queue_wait_prepare(None, SPINEL.HEADER_ASYNC)
+        self.transact(SPINEL.CMD_NVERASE)
 
     def cmd_send(self, command_id, payload=bytes(), tid=SPINEL.HEADER_DEFAULT):
         self.queue_wait_prepare(None, tid)
@@ -1288,6 +995,7 @@ class WpanApi(SpinelCodec):
         self.transact(cmd, pay, tid)
 
         result = self.queue_wait_for_prop(prop_id, tid)
+
         if result:
             return result.value
         else:

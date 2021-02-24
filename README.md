@@ -1,21 +1,13 @@
-# Spinel CLI Reference
+# TI Wi-SUN FAN Spinel CLI Reference
 
-The Spinel CLI exposes the OpenThread configuration and management APIs running on an NCP build via a command line interface. Spinel CLI is primarily targeted for driving the automated continuous integration tests, and is suitable for manual experimentation with controlling OpenThread NCP instances. For a production grade host driver, see [wpantund]: https://github.com/openthread/wpantund.
+The TI Wi-SUN FAN Spinel CLI exposes the configuration and management APIs running on a TI Wi-SUN FAN Network Co-Processor (NCP) via a command line interface. This tool is primarily suitable for manual experimentation with controlling TI Wi-SUN FAN NCP instances and is NOT meant for expanding into production grade driver software for TI Wi-SUN FAN NCP devices.
 
-Use the CLI to play with NCP builds of OpenThread on a Linux or Mac OS platform, including starting a basic tunnel interface to allow IPv6 applications to run on the HOST and use the Thread network.
+This tool will be helpful for following purposes:
 
-The power of this tool is three fold:
-
-1. As a path to add testing of the NCP in simulation to continuous integration
-2. As a path to automated testing of testbeds running NCP firmware on hardware
-3. As a simple debugging tool for NCP builds of OpenThread
+1. As a path to automated testing and performing field trials with TI Wi-SUN FAN NCP running on TI SimpleLink devices.
+2. As a simple debugging tool for NCP builds of TI-WiSUN FAN stack.
 
 ## System Requirements
-
-| OS     | Minimum Version  |
-| ------ | ---------------- |
-| Ubuntu | 14.04 Trusty     |
-| Mac OS | 10.11 El Capitan |
 
 | Language | Minimum Version |
 | -------- | --------------- |
@@ -41,11 +33,11 @@ $ sudo python3 setup.py install
 
 ### NAME
 
-    spinel-cli.py - shell tool for controlling OpenThread NCP instances
+    spinel-cli.py - shell tool for controlling TI Wi-SUN FAN NCP instances
 
 ### SYNOPSIS
 
-    spinel-cli.py [-hupsnqv]
+    spinel-cli.py [-hub]
 
 ### DESCRIPTION
 
@@ -54,7 +46,7 @@ $ sudo python3 setup.py install
     	Show this help message and exit
 
     -u <UART>, --uart=<UART>
-       	Open a serial connection to the OpenThread NCP device
+       	Open a serial connection to the TI Wi-SUN NCP device
 	where <UART> is a device path such as "/dev/ttyUSB0".
 
     -b <BAUDRATE>, --baudrate=<BAUDRATE>
@@ -63,116 +55,40 @@ $ sudo python3 setup.py install
     --rtscts
         Enable the serial connection hardware flow control. By default disabled.
 
-    -p <PIPE>, --pipe=<PIPE>
-        Open a piped process connection to the OpenThread NCP device
-        where <PIPE> is the command to start an emulator, such as
-        "ot-ncp-ftd".  Spinel-cli will communicate with the child process
-        via stdin/stdout.
-
-    -s <SOCKET>, --socket=<SOCKET>
-        Open a socket connection to the OpenThread NCP device
-        where <SOCKET> is the port to open.
-	This is useful for SPI configurations when used in conjunction
-	with a spinel spi-driver daemon.
-	Note: <SOCKET> will eventually map to hostname:port tuple.
-
-    -n NODEID, --nodeid=NODEID
-        The unique nodeid for the HOST and NCP instance.
-
-    -q, --quiet
-        Minimize debug and log output.
-
-    -v, --verbose
-        Maximize debug and log output.
-
-    -d <DEBUG_LEVEL>, --debug=<DEBUG_LEVEL>
-        Specify the debug level.
-
-    --vendor-path
-        Provide a custom location of the vendor package. If not specified, the
-        default location will be used (the vendor package shipped with the
-        pyspinel installation).
-        Note: The vendor package location can also be specified with
-        SPINEL_VENDOR_PATH environment variable.
 ```
 
 ## Quick start
 
-The spinel-cli tool provides an intuitive command line interface, including all the standard OpenThread CLI commands, plus full history accessible by pressing the up/down keys, or searchable via ^R. There are a few commands that spinel-cli provides as well that aren't part of the standard set documented in the command reference section.
+The TI Wi-SUN FAN spinel-cli tool provides an intuitive command line interface for interacting with and controlling TI SimpleLink devices running TI Wi-SUN FAN stack software.
 
-First, clone and build a simulated OpenThread NCP, as described in [How to build OpenThread](https://openthread.io/guides/build#how_to_build_openthread) on openthread.io. After cloning bootstrapping, build the `simulation` example:
+First, build the TI Wi-SUN FAN NCP Border router and router node binaries from the SDK. Flash the images onto the devices.
 
-```
-$ make -f <path-to-openthread>/examples/Makefile-simulation
-```
-
-Then run the Pyspinel CLI, using the path to your simulated build:
+Then run the Pyspinel CLI:
 
 ```
 $ cd <path-to-pyspinel>
-$ spinel-cli.py -p <path-to-openthread>/output/x86_64-unknown-linux-gnu/bin/ot-ncp-ftd -n 1
-Opening pipe to ../../examples/apps/ncp/ot-ncp-ftd 1
-spinel-cli > version
-OPENTHREAD/20180926-01310-g9fdcef20; SIMULATION; Feb 11 2020 14:09:56
+$ spinel-cli.py -u /dev/ttyUSB0
+spinel-cli > ncpversion
+TIWISUNFAN/1.0.0; RELEASE; Jul  9 2021 20:26:46
 Done
-spinel-cli > panid 1234
+spinel-cli > panid 0x1234
 Done
 spinel-cli > ifconfig up
 Done
-spinel-cli > thread start
+spinel-cli > wisunstack start
 Done
-spinel-cli > state
-leader
+spinel-cli > routerstate
+1
+Scanning for suitable network
 Done
 spinel-cli >
 ```
 
-## Running the NCP tests
-
-The OpenThread automated test suite can be run against any of the following node types by passing the NODE_TYPE environment variable:
-
-| NODE_TYPE | Description |
-| --- | --- |
-| sim (default) | Runs against ot-cli posix emulator |
-| ncp-sim | Runs against ot-ncp posix emulator with spinel-cli |
-| soc | Runs against CLI firmware on a device connected via /dev/ttyUSB<nodeid> |
-
-### Manual run of NCP thread-cert test
-
-```
-# From top-level of openthread tree
-$ NODE_TYPE=ncp-sim ./script/test clean build
-$ NODE_TYPE=ncp-sim ./script/test cert tests/scripts/thread-cert/Cert_5_1_02_ChildAddressTimeout.py
-```
-
-### Run entire NCP thread-cert suite
-
-```
-# From top-level of openthread tree
-$ NODE_TYPE=ncp-sim ./script/test cert_suite tests/scripts/thread-cert/Cert_*
-```
-
 ## Command reference
 
-### OpenThread CLI commands
+### Generic CLI commands
 
-The primary intent of spinel-cli is to support the exact syntax and output of the OpenThread CLI command set in order to seamlessly reapply the thread-cert automated test suite against NCP targets.
-
-See [cli module][1] for more information on these commands.
-
-[1]: https://github.com/openthread/openthread/blob/master/src/cli/README.md
-
-### Diagnostics CLI commands
-
-The Diagnostics module is enabled only when building OpenThread with the --enable-diag configure option.
-
-See [diag module][2] for more information on these commands.
-
-[2]: https://github.com/openthread/openthread/blob/master/src/core/diags/README.md
-
-### NCP CLI commands
-
-These commands extend beyond the core OpenThread CLI, and are specific to the spinel-cli tool for the purposes of debugging, access to NCP-specific Spinel parameters, and support of advanced configurations.
+Below are the generic CLI commands supported by TI Wi-SUN FAN pySpinel CLI:
 
 - [help](#help)
 - [?](#help)
@@ -182,37 +98,27 @@ These commands extend beyond the core OpenThread CLI, and are specific to the sp
 - [q](#quit)
 - [clear](#clear)
 - [history](#history)
-- [h](#history)
-- [debug](#debug)
-- [debug-term](#debug-term)
-- [ncp-tun](#ncp-tun)
-- [ncp-ml64](#ncp-ml64)
-- [ncp-ll64](#ncp-ll64)
 
 #### help
 
-Display help all top-level commands supported by spinel-cli.
+Display all commands supported by TI Wi-SUN spinel-cli.
 
 ```bash
 spinel-cli > help
 
 Available commands (type help <name> for more information):
 ============================================================
-bufferinfo         extaddr       mode              releaserouterid
-channel            extpanid      ncp-filter        reset
-child              h             ncp-ll64          rloc16
-childmax           help          ncp-ml64          route
-childtimeout       history       ncp-raw           router
-clear              ifconfig      ncp-tun           routerdowngradethreshold
-commissioner       ipaddr        netdataregister   routerselectionjitter
-contextreusedelay  joiner        networkidtimeout  routerupgradethreshold
-counters           keysequence   networkname       scan
-debug              leaderdata    panid             state
-debug-mem          leaderweight  parent            thread
-diag               mac           ping              txpower
-discover           macfilter     prefix            v
-eidcache           masterkey     q                 vendor
-exit               mfg           quit              version
+asyncchlist      connecteddevices  multicastlist    region
+bcchfunction     exit              ncpversion       reset
+bcdwellinterval  help              networkname      role
+bcinterval       history           nverase          routerstate
+broadcastchlist  hwaddress         panid            txpower
+ccathreshold     ifconfig          phymodeid        ucchfunction
+ch0centerfreq    interfacetype     ping             ucdwellinterval
+chspacing        ipv6addresstable  protocolversion  unicastchlist
+clear            macfilterlist     q                v
+coap             macfiltermode     quit             wisunstack
+
 ```
 
 #### help \<command\>
@@ -220,34 +126,34 @@ exit               mfg           quit              version
 Display detailed help on a specific command.
 
 ```bash
-spinel-cli > help version
+spinel-cli > help ncpversion
 
-version
+ncp version
 
     Print the build version information.
 
-    > version
-    OPENTHREAD/20180926-01310-g9fdcef20; SIMULATION; Feb 11 2020 14:09:56
+    > ncpversion
+    TIWISUNFAN/1.0; DEBUG; Feb 7 2021 18:22:04
     Done
 ```
 
 #### v
 
-Display version of spinel-cli tool.
+Display version of TI Wi-SUN spinel-cli tool.
 
 ```bash
 spinel-cli > v
 spinel-cli ver. 0.1.0
-Copyright (c) 2016 The OpenThread Authors.
+Copyright (c) 2016 The OpenThread Authors. Modified by Texas Instruments for TI NCP Wi-SUN devices
 ```
 
 #### exit
 
-Exit spinel-cli. CTRL+C may also be used.
+Exit TI Wi-SUN spinel-cli. CTRL+C may also be used.
 
 #### quit
 
-Exit spinel-cli. CTRL+C may also be used.
+Exit TI Wi-SUN spinel-cli. CTRL+C may also be used.
 
 ### clear
 
@@ -265,125 +171,133 @@ help
 history
 ```
 
-#### debug
+### TI Wi-SUN specific CLI commands
 
-Get whether debug verbose output is enabled.
+Below are some commonly used Wi-SUN FAN stack specific commands supported by the TI Wi-SUN FAN pySpinel CLI. For the full list of commands and help on individual commands use the [help](#help) command. Please note that any configuration of the TI Wi-SUN FAN stack should be done before bringing up the interface (ifconfig up) and starting the Wi-SUN FAN stack (wisunstack start).
+
+- [networkname](#networkname)
+- [ifconfig](#ifconfig)
+- [wisunstack](#wisunstack)
+- [routerstate](#routerstate)
+- [connecteddevices](#connecteddevices)
+- [ipv6addresstable](#ipv6addresstable)
+- [ping](#ping)
+- [multicastlist](#multicastlist)
+- [coap](#coap)
+
+#### networkname
+
+Get or set the Wi-SUN FAN network name.
 
 ```bash
-spinel-cli > debug
-DEBUG_ENABLE = 0
-```
-
-#### debug \<enabled\>
-
-Set whether debug verbose output is enabled.
-
-spinel-cli > debug DEBUG_ENABLE = 0
-
-```bash
-spinel-cli > debug 1
-DEBUG_ENABLE = 1
-spinel-cli > version
-PROP_VALUE_GET [tid=1]: NCP_VERSION
-PROP_VALUE_IS [tid=1]: NCP_VERSION = 4f:50:45:4e:54:48:52:45:41:44:2f:32:30:31:38:30:39:32:36:2d:30:31:34:30:36:2d:67:63:33:30:33:64:30:66:63:3b:20:53:49:4d:55:4c:41:54:49:4f:4e:3b:20:4d:61:72:20:20:32:20:32:30:32:30:20:31:32:3a:31:37:3a:34:33
-OPENTHREAD/20180926-01406-gc303d0fc; SIMULATION; Mar  2 2020 12:17:43
+spinel-cli > networkname Wi-SUN NET
+Done
+spinel-cli > networkname
+Wi-SUN NET
 Done
 ```
 
-#### debug-term
+#### ifconfig
 
-Get whether debug terminal title bar is enabled.
-
-#### debug-term \<enabled\>
-
-Set whether debug terminal title bar is enabled.
-
-#### ncp-tun
-
-Control sideband tunnel interface.
-
-#### ncp-tun up
-
-Bring up Thread TUN interface.
+Bring up or down the Wi-SUN FAN Network Interface.
 
 ```bash
-spinel-cli > ncp-tun up
+spinel-cli > ifconfig up
 Done
 ```
 
-#### ncp-tun down
+#### wisunstack
 
-Bring down Thread TUN interface.
+Display the Operational status of the Wi-SUN FAN network. Can also be used to enable/disable Wi-SUN stack operation and attach to/detach from a Wi-SUN network. "wisunstack start" command should be preceeded by "ifconfig up" command. For router node, even though the stack is brought up, it takes some time for the node to join the network and become operational. Refer to routerstate command for more info.
 
 ```bash
-spinel-cli > ncp-tun down
+spinel-cli > wisunstack start
+Done
+spinel-cli > wisunstack
+start
 Done
 ```
 
-#### ncp-tun add \<ipaddr\>
+#### routerstate
 
-Add an IPv6 address to the Thread TUN interface.
+Display the current join state of the Wi-SUN FAN router device. Refer to the FAN 1.0 specification for information on different states of the Wi-SUN FAN router devices before it can join a network and become operational.
 
 ```bash
-spinel-cli > ncp-tun add 2001::dead:beef:cafe
+spinel-cli > routerstate
+5
+Successfully joined and operational
 Done
 ```
 
-#### ncp-tun del \<ipaddr\>
 
-Delete an IPv6 address from the Thread TUN interface.
+#### connecteddevices
+
+Displays the list of Wi-SUN FAN router nodes who have joined to the Wi-SUN FAN border router device.
 
 ```bash
-spinel-cli > ncp-tun del 2001::dead:beef:cafe
+spinel-cli > connecteddevices
+List of Connected Devices currently in routing table:
+
+fd00:7283:7e00:0:212:4b00:1ca1:727a
+
+fd00:7283:7e00:0:212:4b00:1ca6:17ea
+
 Done
 ```
 
-#### ncp-tun ping \<ipaddr\> \[size\] \[count\] \[interval\]
+#### ipv6addresstable
 
-Send an ICMPv6 Echo Request via a posix host system call.
+Display the Globally Unique DHCP address and Link Local Adress along with prefix length, valid lifetime and preferred lifetime.
 
 ```bash
-spinel-cli > ncp-tun ping fdde:ad00:beef:0:558:f56b:d688:799
-16 bytes from fdde:ad00:beef:0:558:f56b:d688:799: icmp_seq=1 hlim=64 time=28ms
-```
-
-#### ncp-ml64
-
-Return the Mesh Local 64-bit IPv6 address for the node.
-
-```
-spinel-cli > ncp-ml64
-fdde:ad00:beef:0:558:f56b:d688:799
+spinel-cli > ipv6addresstable
+fd00:7283:7e00:0:212:4b00:1ca1:9463; prefix_len = 64; valid_lifetime = 43129; preferred_lifetime = 21529
+fe80::212:4b00:1ca1:9463; prefix_len = 64; valid_lifetime = 4294967295; preferred_lifetime = 4294967295
 Done
 ```
 
-#### ncp-ll64
+#### ping
 
-Return the Link Local 64-bit IPv6 address for the node.
-
-## Vendor package
-
-Extension of the Spinel CLI with custom properties and commands. This plugin-like extension adds vendor-specific commands and properties to pyspinel in a way that does not impact the implementation of core pyspinel functionalities.
-
-The vendor package contains the following modules:
-
-| MODULE | DESCRIPTION                                        |
-| ------ | -------------------------------------------------- |
-| vendor | Module that provides a specific vendor commands.   |
-| const  | Module with constants for vendor spinel extension. |
-| codec  | Module that provides a vendor property handlers.   |
-
-Each module comes with an example that shows how to add specific vendor codecs and constants.
-
-By default, pyspinel will use the vendor package shipped with pyspinel installation. You can provide a custom vendor package location with --vendor-path option or SPINEL_VENDOR_PATH environment variable.
-
-### Vendor commands
-
-The vendor package adds several vendor-specific pyspinel commands. Use the help command to list them all.
+Send an ICMPv6 Echo Request.
 
 ```bash
-spinel-cli > vendor help
-Available vendor commands:
-==============================================
-help
+spinel-cli > ping fd00:7283:7e00:0:212:4b00:1ca1:9463
+56 bytes from fd00:7283:7e00:0:212:4b00:1ca1:9463: icmp_seq=50089 hlim=64 time=118ms
+```
+
+#### multicastlist
+
+Display, add, or remove IPv6 multicast addresses from the list of multicast addresses the device is subscribed to.
+
+```bash
+spinel-cli > multicastlist
+ff05::2
+
+spinel-cli > multicastlist remove ff05::2
+
+spinel-cli > multicastlist add ff04::1
+
+spinel-cli > multicastlist
+ff04::1
+```
+
+#### coap
+
+Send a CoAP GET, PUT, or POST command to get or set the LaunchPad LED state. This is intended to interface with the `coap_node` TI Wi-SUN FAN example.
+
+```bash
+spinel-cli > coap fdde:ad00:beef:0:558:f56b:d688:799 get con led
+CoAP packet received from fe80::212:4b00:10:50d4: type: 2 (Acknowledgement), token len: 0, code: 2.05 (Content), msg_id: 1
+CoAP options: Content-Format (12): b''
+RLED state: Off, GLED state: On
+
+spinel-cli > coap fdde:ad00:beef:0:558:f56b:d688:799 post con led --led_state r 1
+CoAP packet received from fe80::212:4b00:10:50d4: type: 2 (Acknowledgement), token len: 0, code: 2.04 (Changed), msg_id: 2
+CoAP options: Content-Format (12): b''
+No CoAP payload
+
+spinel-cli > coap fdde:ad00:beef:0:558:f56b:d688:799 get non led
+CoAP packet received from fe80::212:4b00:10:50d4: type: 2 (Acknowledgement), token len: 0, code: 2.04 (Changed), msg_id: 2
+CoAP options: Content-Format (12): b''
+No CoAP payload
 ```

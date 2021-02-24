@@ -38,10 +38,12 @@ import abc
 import io
 import struct
 
+
 # Next headers for IPv6 protocols
 IPV6_NEXT_HEADER_HOP_BY_HOP = 0
 IPV6_NEXT_HEADER_TCP = 6
 IPV6_NEXT_HEADER_UDP = 17
+IPV6_NEXT_HEADER_IP = 41
 IPV6_NEXT_HEADER_ICMP = 58
 
 UPPER_LAYER_PROTOCOLS = [
@@ -57,6 +59,118 @@ ICMP_ECHO_RESPONSE = 129
 # Default hop limit for IPv6
 HOP_LIMIT_DEFAULT = 64
 
+# CoAP constants
+COAP_VERSION = 1
+
+COAP_TYPE_CON = 0 # Confirmable message
+COAP_TYPE_NON = 1 # Non-confirmable message
+COAP_TYPE_ACK = 2 # Acknowledgement message
+COAP_TYPE_RST = 3 # Reset message
+
+COAP_METHOD_CODE_GET              = (0,1)
+COAP_METHOD_CODE_POST             = (0,2)
+COAP_METHOD_CODE_PUT              = (0,3)
+COAP_METHOD_CODE_DELETE           = (0,4)
+
+COAP_RSP_CODE_EMPTY               = (0,0)
+
+COAP_RSP_CODE_CREATED             = (1,1)
+COAP_RSP_CODE_DELETED             = (2,2)
+COAP_RSP_CODE_VALID               = (2,3)
+COAP_RSP_CODE_CHANGED             = (2,4)
+COAP_RSP_CODE_CONTENT             = (2,5)
+
+COAP_RSP_CODE_BAD_REQUEST         = (4,0)
+COAP_RSP_CODE_UNAUTHORIZED        = (4,1)
+COAP_RSP_CODE_BAD_OPTION          = (4,2)
+COAP_RSP_CODE_FORBIDDEN           = (4,3)
+COAP_RSP_CODE_NOT_FOUND           = (4,4)
+COAP_RSP_CODE_NOT_ALLOWED         = (4,5)
+COAP_RSP_CODE_NOT_ACCEPTABLE      = (4,6)
+COAP_RSP_CODE_PRECOND_FAILED      = (4,12)
+COAP_RSP_CODE_TOO_LARGE           = (4,13)
+COAP_RSP_CODE_UNSUPPORTED_FORMAT  = (4,15)
+
+COAP_RSP_CODE_INTERNAL_SERVER_ERR = (5,0)
+COAP_RSP_CODE_NOT_IMPLEMENTED     = (5,1)
+COAP_RSP_CODE_BAD_GATEWAY         = (5,2)
+COAP_RSP_CODE_SERVICE_UNAVAILABLE = (5,3)
+COAP_RSP_CODE_GATEWAY_TIMEOUT     = (5,4)
+COAP_RSP_CODE_PROXY_NOT_SUPPORTED = (5,5)
+
+COAP_OPTION_IF_MATCH       = 1
+COAP_OPTION_URI_HOST       = 3
+COAP_OPTION_ETAG           = 4
+COAP_OPTION_IF_NONE_MATCH  = 5
+COAP_OPTION_URI_PORT       = 7
+COAP_OPTION_LOCATION_PATH  = 8
+COAP_OPTION_URI_PATH       = 11
+COAP_OPTION_CONTENT_FORMAT = 12
+COAP_OPTION_MAX_AGE        = 14
+COAP_OPTION_URI_QUERY      = 15
+COAP_OPTION_ACCEPT         = 17
+COAP_OPTION_LOCATION_QUERY = 20
+COAP_OPTION_PROXY_URI      = 35
+COAP_OPTION_PROXY_SCHEME   = 39
+COAP_OPTION_SIZE1          = 60
+
+COAP_TYPE_NAME_LOOKUP = {
+    COAP_TYPE_CON: "Confirmable",
+    COAP_TYPE_NON: "Non-confirmable",
+    COAP_TYPE_ACK: "Acknowledgement",
+    COAP_TYPE_RST: "Reset",
+}
+
+COAP_CODE_NAME_LOOKUP = {
+    COAP_RSP_CODE_EMPTY              : "Empty Message",
+
+    COAP_METHOD_CODE_GET             : "Get",
+    COAP_METHOD_CODE_POST            : "Post",
+    COAP_METHOD_CODE_PUT             : "Put",
+    COAP_METHOD_CODE_DELETE          : "Delete",
+
+    COAP_RSP_CODE_CREATED            : "Created",
+    COAP_RSP_CODE_DELETED            : "Deleted",
+    COAP_RSP_CODE_VALID              : "Valid",
+    COAP_RSP_CODE_CHANGED            : "Changed",
+    COAP_RSP_CODE_CONTENT            : "Content",
+
+    COAP_RSP_CODE_BAD_REQUEST        : "Bad Request",
+    COAP_RSP_CODE_UNAUTHORIZED       : "Unauthorized",
+    COAP_RSP_CODE_BAD_OPTION         : "Bad Option",
+    COAP_RSP_CODE_FORBIDDEN          : "Forbidden",
+    COAP_RSP_CODE_NOT_FOUND          : "Not Found",
+    COAP_RSP_CODE_NOT_ALLOWED        : "Method Not Allowed",
+    COAP_RSP_CODE_NOT_ACCEPTABLE     : "Not Acceptable",
+    COAP_RSP_CODE_PRECOND_FAILED     : "Precondition Failed",
+    COAP_RSP_CODE_TOO_LARGE          : "Request Entity Too Large",
+    COAP_RSP_CODE_UNSUPPORTED_FORMAT : "Unsupported Content Format",
+
+    COAP_RSP_CODE_INTERNAL_SERVER_ERR: "Internal Server Error",
+    COAP_RSP_CODE_NOT_IMPLEMENTED    : "Not Implemented",
+    COAP_RSP_CODE_BAD_GATEWAY        : "Bad Gateway",
+    COAP_RSP_CODE_SERVICE_UNAVAILABLE: "Service Unavailable",
+    COAP_RSP_CODE_GATEWAY_TIMEOUT    : "Gateway Timeout",
+    COAP_RSP_CODE_PROXY_NOT_SUPPORTED: "Proxying Not Supported",
+}
+
+COAP_OPTION_NAME_LOOKUP = {
+    COAP_OPTION_IF_MATCH      : "If-Match",
+    COAP_OPTION_URI_HOST      : "Uri-Host",
+    COAP_OPTION_ETAG          : "ETag",
+    COAP_OPTION_IF_NONE_MATCH : "If-None-Match",
+    COAP_OPTION_URI_PORT      : "Uri-Port",
+    COAP_OPTION_LOCATION_PATH : "Location-Path",
+    COAP_OPTION_URI_PATH      : "Uri-Path",
+    COAP_OPTION_CONTENT_FORMAT: "Content-Format",
+    COAP_OPTION_MAX_AGE       : "Max-Age",
+    COAP_OPTION_URI_QUERY     : "Uri-Query",
+    COAP_OPTION_ACCEPT        : "Accept",
+    COAP_OPTION_LOCATION_QUERY: "Location-Query",
+    COAP_OPTION_PROXY_URI     : "Proxy-Uri",
+    COAP_OPTION_PROXY_SCHEME  : "Proxy-Scheme",
+    COAP_OPTION_SIZE1         : "Size1",
+}
 
 def calculate_checksum(data):
     """ Calculate checksum from data bytes.
@@ -266,6 +380,10 @@ class IPv6Header(ConvertibleToBytes, BuildableFromBytes):
         return ip_address(value)
 
     @property
+    def type(self):
+        return IPV6_NEXT_HEADER_IP
+
+    @property
     def source_address(self):
         return self._source_address
 
@@ -376,6 +494,13 @@ class IPv6Packet(ConvertibleToBytes):
 
         self._update_next_header_values_in_headers()
 
+        self.has_tunneled_ipv6_header = False
+        self.tunneled_ipv6_header = None
+        for extension_header in self.extension_headers:
+            if extension_header.type == IPV6_NEXT_HEADER_IP:
+                self.has_tunneled_ipv6_header = True
+                self.tunneled_ipv6_header = extension_header
+
         if not upper_layer_protocol.is_valid_checksum():
             self.upper_layer_protocol.checksum = self.calculate_checksum()
 
@@ -403,6 +528,14 @@ class IPv6Packet(ConvertibleToBytes):
 
         last_header.next_header = self.upper_layer_protocol.type
 
+    def _update_payload_length_value_in_tunneled_ipv6_header(self):
+        for i in range(len(self.extension_headers)):
+            curr_header = self.extension_headers[i]
+            if curr_header.type == IPV6_NEXT_HEADER_IP:
+                remaining_headers = self.extension_headers[i+1:]
+                curr_header.payload_length = len(self.upper_layer_protocol) + \
+                sum([len(h) for h in remaining_headers])
+
     def calculate_checksum(self):
         saved_checksum = self.upper_layer_protocol.checksum
 
@@ -412,8 +545,14 @@ class IPv6Packet(ConvertibleToBytes):
 
         self.upper_layer_protocol.checksum = saved_checksum
 
-        pseudo_header = IPv6PseudoHeader(self.ipv6_header.source_address,
-                                         self.ipv6_header.destination_address,
+        if self.has_tunneled_ipv6_header:
+            source_address = self.tunneled_ipv6_header.source_address
+            destination_address = self.tunneled_ipv6_header.destination_address
+        else:
+            source_address = self.ipv6_header.source_address
+            destination_address = self.ipv6_header.destination_address
+        pseudo_header = IPv6PseudoHeader(source_address,
+                                         destination_address,
                                          len(upper_layer_protocol_bytes),
                                          self.upper_layer_protocol.type)
 
@@ -423,6 +562,7 @@ class IPv6Packet(ConvertibleToBytes):
     def to_bytes(self):
         self._update_payload_length_value_in_ipv6_header()
         self._update_next_header_values_in_headers()
+        self._update_payload_length_value_in_tunneled_ipv6_header()
         self.upper_layer_protocol.checksum = self.calculate_checksum()
 
         ipv6_packet = self.ipv6_header.to_bytes()
@@ -583,7 +723,352 @@ class ICMPv6(UpperLayerProtocol):
     def __len__(self):
         return len(self.header) + len(self.body)
 
+class CoAPOption(ConvertibleToBytes):
+    """ Class representing CoAP option
+    """
+    def __init__(self, option_num, option_val):
+        self.option_num = option_num
+        if option_val is None:
+            self.option_val = bytes()
+        else:
+            self.option_val = option_val
 
+        self.option_len = len(self.option_val)
+        self.option_len_ext = 0
+        if self.option_len >= 13 and self.option_len < 269:
+            self.option_len_ext = self.option_len - 13
+            self.option_len = 13
+        elif self.option_len >= 269:
+            self.option_len_ext = self.option_len - 269
+            self.option_len = 14
+
+    def set_delta(self, prev_option_num):
+        self.option_delta = self.option_num - prev_option_num
+        self.option_delta_ext = 0
+        if self.option_delta >= 13 and self.option_delta < 269:
+            self.option_delta_ext = self.option_delta - 13
+            self.option_delta = 13
+        elif self.option_delta >= 269:
+            self.option_delta_ext = self.option_delta - 269
+            self.option_delta = 14
+
+    def to_bytes(self):
+        output_bytes = bytes()
+        output_bytes += struct.pack(">B", (self.option_delta << 4) + (self.option_len))
+
+        if (self.option_delta == 13):
+            output_bytes += struct.pack(">B", self.option_delta_ext)
+        elif (self.option_delta == 14):
+            output_bytes += struct.pack(">H", self.option_delta_ext)
+
+        if (self.option_len == 13):
+            output_bytes += struct.pack(">B", self.option_len_ext)
+        elif (self.option_len == 14):
+            output_bytes += struct.pack(">H", self.option_len_ext)
+
+        output_bytes += self.option_val
+        return output_bytes
+
+class CoAPHeader(ConvertibleToBytes, BuildableFromBytes):
+    """ Class representing CoAP header
+    """
+    def __init__(self, _type, tkl, code, msg_id, token, options):
+        self.version = COAP_VERSION
+        self.type = _type
+        self.tkl = tkl    # Token length
+        self.code = code
+        self.msg_id = msg_id
+        self.token = token
+        if options is None:
+            self.options = []
+        else:
+            self.options = options
+
+    def to_bytes(self):
+        version_type_tkl = (self.version << 6) + (self.type << 4) + self.tkl
+        code_byte = (self.code[0] << 5) + self.code[1]
+        output_bytes = bytes()
+        output_bytes += struct.pack(">B", version_type_tkl)
+        output_bytes += struct.pack(">B", code_byte)
+        output_bytes += struct.pack(">H", self.msg_id)
+        for _ in range(self.tkl):
+            output_bytes += struct.pack(">B", self.token & 0xFF)
+            self.token >> 8
+
+        prev_option_num = 0
+        for option in self.options:
+            option.set_delta(prev_option_num)
+            output_bytes += option.to_bytes()
+            prev_option_num = option.option_num
+        return output_bytes
+
+    @classmethod
+    def from_bytes(cls, data):
+        # Read header bytes
+        version_type_tkl = ord(data.read(1))
+        _type = (version_type_tkl & 0x30) >> 4
+        tkl = version_type_tkl & 0x0F
+        code_byte = ord(data.read(1))
+        code = ((code_byte & 0xE0) >> 5, code_byte & 0x1F)
+        msg_id = struct.unpack(">H", data.read(2))[0]
+
+        # Read token
+        token = 0
+        for i in range(tkl):
+            token += ord(data.read(1)) << (i*8)
+
+        # Read options
+        options = []
+        prev_option_num = 0
+        option_delta_len = 0
+        total_len = len(data.getvalue())
+        remaining = total_len - data.tell()  # Calulate remaining bytes
+        while remaining > 0:
+            # Get delta + length byte
+            option_delta_len = ord(data.read(1))
+            if option_delta_len == 0xFF:
+                break
+
+            # Calculate full delta value
+            delta = option_delta_len >> 4
+            if delta == 13:
+                delta = struct.unpack(">B", data.read(1))[0] + 13
+            elif delta == 14:
+                delta = struct.unpack(">H", data.read(2))[0] + 269
+            elif delta == 15:
+                print("CoAP option format error")
+                return None
+
+            # Calculate full length value
+            option_len = option_delta_len & 0x0F
+            if option_len == 13:
+                option_len = struct.unpack(">B", data.read(1))[0] + 13
+            elif option_len == 14:
+                option_len = struct.unpack(">H", data.read(2))[0] + 269
+            elif delta == 15:
+                print("CoAP option format error")
+                return None
+
+            # Populate new CoAPOption object
+            option_num = prev_option_num + delta
+            option_payload = bytes()
+            for _ in range(option_len):
+                option_payload += data.read(1)
+            options.append(CoAPOption(option_num, option_payload))
+            remaining = total_len - data.tell()
+
+        return cls(_type, tkl, code, msg_id, token, options)
+
+    def __len__(self):
+        return len(self.to_bytes())
+
+class CoAPPayload(ConvertibleToBytes, BuildableFromBytes):
+    def __init__(self, payload=None):
+        self.payload = payload
+
+    def to_bytes(self):
+        if self.payload is not None:
+            return bytes([0xFF]) + self.payload
+        else:
+            return bytes()
+
+    @classmethod
+    def from_bytes(cls, data):
+        remaining = len(data.getvalue()) - data.tell()
+        payload = bytes()
+        for _ in range(remaining):
+            payload += data.read(1)
+        return cls(payload)
+
+    def __len__(self):
+        return len(self.to_bytes())
+
+class CoAP(ConvertibleToBytes):
+    """ Class representing CoAP message
+    """
+    def __init__(self, header, payload=None):
+        self.header = header
+        if payload is None:
+            self.payload = CoAPPayload()
+        else:
+            self.payload = payload
+
+    def to_bytes(self):
+        return bytearray(self.header.to_bytes() + self.payload.to_bytes())
+
+    def __len__(self):
+        return len(self.header) + len(self.payload)
+
+
+##- Routing Header
+
+class RoutingHeader(ExtensionHeader):
+    """ Class representing RoutingHeader extension header.
+
+    RoutingHeader extension header consists of:
+        - next_header type
+        - extension header length which is multiple of 8
+        - options
+
+    """
+    _one_byte_padding = 0x00
+    _many_bytes_padding = 0x01
+
+    @property
+    def type(self):
+        return 0
+
+    def __init__(self, next_header=None, options=None, hdr_ext_len=None):
+        super(RoutingHeader, self).__init__(next_header, hdr_ext_len)
+        self.options = options if options is not None else []
+
+        if hdr_ext_len is not None:
+            self.hdr_ext_len = hdr_ext_len
+        else:
+            payload_length = self._calculate_payload_length()
+            self.hdr_ext_len = self._calculate_hdr_ext_len(payload_length)
+
+    def _calculate_payload_length(self):
+        payload_length = 2
+
+        for option in self.options:
+            payload_length += len(option)
+
+        return payload_length
+
+    def _calculate_hdr_ext_len(self, payload_length):
+        count = payload_length >> 3
+
+        if (payload_length & 0x7) == 0 and count > 0:
+            return count - 1
+
+        return count
+
+    def to_bytes(self):
+        data = bytearray([self.next_header, self.hdr_ext_len])
+
+        for option in self.options:
+            data += option.to_bytes()
+
+        # Padding
+        #
+        # More details:
+        #   https://tools.ietf.org/html/rfc2460#section-4.2
+        #
+        excess_bytes = len(data) & 0x7
+
+        if excess_bytes > 0:
+            padding_length = 8 - excess_bytes
+
+            if padding_length == 1:
+                data += bytearray([self._one_byte_padding])
+
+            else:
+                padding_length -= 2
+                data += bytearray([self._many_bytes_padding, padding_length])
+                data += bytearray([0x00 for _ in range(padding_length)])
+
+        return data
+
+    def __len__(self):
+        """ RoutingHeader extension header length
+
+        More details:
+            https://tools.ietf.org/html/rfc2460#section-4.4
+
+        """
+        return (self.hdr_ext_len + 1) * 8
+
+
+class RoutingHeaderOptionHeader(ConvertibleToBytes, BuildableFromBytes):
+    """ Class representing RoutingHeader option header. """
+
+    _header_length = 2
+
+    def __init__(self,_type, cmprI, cmprE, pad, length=None):
+        self.type = _type
+        self.length = length if length is not None else 0
+        self.cmprI = cmprI
+        self.cmprE = cmprE
+        self.pad = pad
+        self.reserved = 0
+
+    def to_bytes(self):
+        return bytearray([self.type, self.length])
+
+    @classmethod
+    def from_bytes(cls, data):
+        _type = ord(data.read(1))
+        if _type == 3: #SRH
+            # compute n, the number of addresses in the Routing header, by
+            #n = (((Hdr Ext Len * 8) - Pad - (16 - CmprE)) / (16 - CmprI)) + 1
+            #HDr_ext_Len = 2
+            segment_left = ord(data.read(1))
+            cmpr = ord(data.read(1))
+            cmpr_I = (cmpr >> 4) & 0xF
+            cmpr_E = cmpr & 0xF
+            pad = ((ord(data.read(1))) >> 4)  & 0xF
+            rsvd = data.read(2)
+            n = int((((2*8) - pad - (16 - cmpr_E))/(16-cmpr_I))+1)
+            #Total Option Length =  8 + (n-1) * (16-cmpr_I) + (16 - cmpr_E) + pad
+            length =  8 + (n-1) * (16-cmpr_I) + (16 - cmpr_E) + pad
+        else:
+            length = ord(data.read(1))
+        return cls(_type, cmpr_I, cmpr_E, pad, length)
+
+    def __len__(self):
+        return self._header_length
+
+
+class RoutingHeaderOption(ConvertibleToBytes):
+    """ Class representing RoutingHeader option.
+
+    Class consists of two elements: RoutingHeaderOptionHeader and value (e.g. for SRH).
+
+    The following example shows how any RoutingHeader option can be constructed.
+
+    Example:
+        *** TBD for Routing Header
+        HopByHop(next_header=0x3a,
+                 options=[HopByHopOption(HopByHopOptionHeader(_type=0x6d),
+                                         MPLOption(S=1, M=0, V=0, sequence=2, seed_id=bytes([0x00, 0x18])))
+
+    """
+
+    def __init__(self, header, value):
+        self.value = value
+
+        self.header = header
+        self.header.length = len(self.value)
+
+    def to_bytes(self):
+        return self.header.to_bytes() + self.value.to_bytes()
+
+    def __len__(self):
+        return len(self.header) + len(self.value)
+
+class SRHOption(ConvertibleToBytes):
+    """ Class representing SRH option. """
+
+    _header_length = 8
+
+    def __init__(self, addressList):
+        self.addressList = addressList
+
+    def to_bytes(self):
+        return bytearray([self.addressList])
+
+    @classmethod
+    def from_bytes(cls, data):
+        tot_lengh_option = data.getbuffer().nbytes
+        addressList = data.read(tot_lengh_option)
+
+        return cls(addressList)
+
+    def __len__(self):
+        return self._header_length
+
+##RoutingHeader
 class HopByHop(ExtensionHeader):
     """ Class representing HopByHop extension header.
 
@@ -710,6 +1195,39 @@ class HopByHopOption(ConvertibleToBytes):
     def __len__(self):
         return len(self.header) + len(self.value)
 
+class RPLOption(ConvertibleToBytes):
+    """ Class representing RPL option. """
+
+    _header_length = 2
+
+    def __init__(self, down, rankErr, fwdErr, inst_id, senderRank):
+        self.down = down
+        self.rank_error = rankErr
+        self.forwarding_error = fwdErr
+        self.instance_id = inst_id
+        self.sender_rank = senderRank
+
+    def to_bytes(self):
+        flg = ((self.down & 0x01) << 7) | ((self.rank_error & 0x01) << 6) | (
+            (self.forwarding_error & 0x01) << 5)
+
+        return bytearray([flg, self.instance_id, self.sender_rank])
+
+    @classmethod
+    def from_bytes(cls, data):
+        b = ord(data.read(1))
+
+        down = ((b >> 7) & 0x01)
+        rank_error = ((b >> 6) & 0x01)
+        forwarding_error = ((b >> 5) & 0x01)
+
+        instance_id = ord(data.read(1))
+        sender_rank = data.read(2)
+
+        return cls(down, rank_error, forwarding_error, instance_id, sender_rank)
+
+    def __len__(self):
+        return self._header_length
 
 class MPLOption(ConvertibleToBytes):
     """ Class representing MPL option. """
@@ -844,15 +1362,87 @@ class IPv6PacketFactory(PacketFactory):
 
         message_info.source_ipv6 = ipv6_header.source_address
         message_info.destination_ipv6 = ipv6_header.destination_address
-
+        #print('Received IPv6 data')
+        #print(data.getvalue().hex())
         next_header, extension_headers = self._parse_extension_headers(
             data, ipv6_header.next_header, message_info)
-
         upper_layer_protocol = self._parse_upper_layer_protocol(
             data, next_header, message_info)
 
         return IPv6Packet(ipv6_header, upper_layer_protocol, extension_headers)
 
+class RoutingHeaderOptionsFactory(object):
+    """ Factory that produces RoutingHeader options. """
+
+    _one_byte_padding = 0x00
+    _many_bytes_padding = 0x01
+
+    def __init__(self, options_factories=None):
+        self._options_factories = options_factories if options_factories is not None else {}
+
+    def _get_RoutingHeaderOption_value_factory(self, _type):
+        try:
+            return self._options_factories[_type]
+        except KeyError:
+            raise RuntimeError(
+                "Could not find RoutingHeaderOption value factory for type={}.".
+                format(_type))
+
+    def parse(self, data, message_info):
+        options = []
+        while data.tell() < len(data.getvalue()):
+            option_header = RoutingHeaderOptionHeader.from_bytes(data)
+
+            if option_header.type == self._one_byte_padding:
+                # skip one byte padding
+                data.read(1)
+
+            elif option_header.type == self._many_bytes_padding:
+                # skip n bytes padding
+                data.read(option_header.length)
+
+            else:
+                factory = self._get_RoutingHeaderOption_value_factory(
+                    option_header.type)
+
+                option_data = data.read(option_header.length)
+
+                option = RoutingHeaderOption(
+                    option_header,
+                    factory.parse(io.BytesIO(option_data), message_info))
+
+                options.append(option)
+
+        return options
+
+class RoutingHeaderFactory(PacketFactory):
+    """ Factory that produces Routing Header extension headers from data. """
+
+    def __init__(self, routing_header_options_factory):
+        self._routing_header_options_factory = routing_header_options_factory
+
+    def _calculate_extension_header_length(self, hdr_ext_len):
+        return (hdr_ext_len + 1) * 8
+
+    def parse(self, data, message_info):
+        next_header = ord(data.read(1))
+
+        hdr_ext_len = ord(data.read(1))
+
+        # Note! two bytes were read (next_header & hdr_ext_len) so they must be substracted from header length
+        routing_header_length = self._calculate_extension_header_length(
+            hdr_ext_len) - 2
+
+        routing_header_data = data.read(routing_header_length)
+
+        options = self._routing_header_options_factory.parse(
+            io.BytesIO(routing_header_data), message_info)
+
+        routing_header = RoutingHeader(next_header, options, hdr_ext_len)
+
+        message_info.payload_length += len(routing_header)
+
+        return routing_header
 
 class HopByHopOptionsFactory(object):
     """ Factory that produces HopByHop options. """
@@ -936,6 +1526,17 @@ class MPLOptionFactory(PacketFactory):
     def parse(self, data, message_info):
         return MPLOption.from_bytes(data)
 
+class RPLOptionFactory(PacketFactory):
+    """ Factory that produces RPL options for HopByHop extension header. """
+
+    def parse(self, data, message_info):
+        return RPLOption.from_bytes(data)
+
+class SRHOptionFactory(PacketFactory):
+    """ Factory that produces SRH options for RoutingHeader extension header. """
+
+    def parse(self, data, message_info):
+        return SRHOption.from_bytes(data)
 
 class UDPHeaderFactory:
     """ Factory that produces UDP header. """
@@ -1006,6 +1607,29 @@ class ICMPv6EchoBodyFactory(PacketFactory):
 
     def parse(self, data, message_info):
         return ICMPv6EchoBody.from_bytes(data)
+
+
+class CoAPHeaderFactory(PacketFactory):
+    """ Factory that produces CoAP header from data """
+
+    def parse(self, data, message_info):
+        return CoAPHeader.from_bytes(data)
+
+
+class CoAPPayloadFactory(PacketFactory):
+    """ Factory that produces CoAP payload from data"""
+
+    def parse(self, data, message_info):
+        return CoAPPayload.from_bytes(data)
+
+
+class CoAPFactory(PacketFactory):
+    """ Factory that produces the CoAP payload from data"""
+
+    def parse(self, data, message_info):
+        header = CoAPHeader.from_bytes(data)
+        payload = CoAPPayload.from_bytes(data)
+        return CoAP(header, payload)
 
 
 class UDPBytesPayload(ConvertibleToBytes, BuildableFromBytes):
