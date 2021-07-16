@@ -108,17 +108,16 @@ spinel-cli > help
 
 Available commands (type help <name> for more information):
 ============================================================
-asyncchlist      connecteddevices  multicastlist    region
-bcchfunction     exit              ncpversion       reset
-bcdwellinterval  help              networkname      role
-bcinterval       history           nverase          routerstate
-broadcastchlist  hwaddress         panid            txpower
-ccathreshold     ifconfig          phymodeid        ucchfunction
-ch0centerfreq    interfacetype     ping             ucdwellinterval
-chspacing        ipv6addresstable  protocolversion  unicastchlist
-clear            macfilterlist     q                v
-coap             macfiltermode     quit             wisunstack
-
+asyncchlist      connecteddevices  macfiltermode    q                v
+bcchfunction     dodagroute        multicastlist    quit             wisunstack
+bcdwellinterval  exit              ncpversion       region
+bcinterval       help              networkname      reset
+broadcastchlist  history           numconnected     role
+ccathreshold     hwaddress         nverase          routerstate
+ch0centerfreq    ifconfig          panid            txpower
+chspacing        interfacetype     phymodeid        ucchfunction
+clear            ipv6addresstable  ping             ucdwellinterval
+coap             macfilterlist     protocolversion  unicastchlist
 ```
 
 #### help \<command\>
@@ -179,11 +178,13 @@ Below are some commonly used Wi-SUN FAN stack specific commands supported by the
 - [ifconfig](#ifconfig)
 - [wisunstack](#wisunstack)
 - [routerstate](#routerstate)
+- [numconnected](#numconnected)
 - [connecteddevices](#connecteddevices)
 - [ipv6addresstable](#ipv6addresstable)
 - [ping](#ping)
 - [multicastlist](#multicastlist)
 - [coap](#coap)
+- [dodagroute](#dodagroute)
 
 #### networkname
 
@@ -229,19 +230,26 @@ Successfully joined and operational
 Done
 ```
 
+#### numconnected
+
+Displays the number of Wi-SUN FAN nodes which have joined to the Wi-SUN FAN border router device.
+
+```bash
+spinel-cli > numconnected
+2
+Done
+```
 
 #### connecteddevices
 
-Displays the list of Wi-SUN FAN router nodes who have joined to the Wi-SUN FAN border router device.
+Displays the list of Wi-SUN FAN router nodes which have joined to the Wi-SUN FAN border router device.
 
 ```bash
 spinel-cli > connecteddevices
-List of Connected Devices currently in routing table:
-
+List of connected devices currently in routing table:
 fd00:7283:7e00:0:212:4b00:1ca1:727a
-
 fd00:7283:7e00:0:212:4b00:1ca6:17ea
-
+Number of connected devices: 2
 Done
 ```
 
@@ -300,4 +308,17 @@ spinel-cli > coap fdde:ad00:beef:0:558:f56b:d688:799 get non led
 CoAP packet received from fe80::212:4b00:10:50d4: type: 2 (Acknowledgement), token len: 0, code: 2.04 (Changed), msg_id: 2
 CoAP options: Content-Format (12): b''
 No CoAP payload
+```
+
+#### dodagroute
+
+Displays the full routing path to a device with a specified IPv6 address. Also displays the path cost.
+
+```bash
+spinel-cli > dodagroute fd00:7283:7e00:0:212:4b00:10:50d0
+Path cost: 2
+fd00:7283:7e00:0:212:4b00:10:50d4
+fd00:7283:7e00:0:212:4b00:1ca1:758e
+fd00:7283:7e00:0:212:4b00:10:50d0
+Done
 ```

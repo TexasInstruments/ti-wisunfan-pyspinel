@@ -514,6 +514,9 @@ class SpinelPropertyHandler(SpinelCodec):
     def PROP_MAC_FILTER_MODE(self, _, payload):
         return self.parse_C(payload)
 
+    def PROP_REVOKE_GTK_HWADDR(self, _, payload):
+        return self.parse_E(payload)
+
     def __init__(self):
         self.autoAddresses = set()
 
@@ -557,6 +560,17 @@ class SpinelPropertyHandler(SpinelCodec):
             self.handle_prefix_change(payload)
             self.__queue_prefix.task_done()
 
+    def DODAG_ROUTE_DEST(self, _, payload):
+        return self.parse_D(payload)
+
+    def DODAG_ROUTE(self, _, payload):
+        return self.parse_D(payload)
+
+    def NUM_CONNECTED_DEVICES(self, _, payload):
+        return self.parse_S(payload)
+
+    def CONNECTED_DEVICES(self, _, payload):
+        return self.parse_D(payload)
 
     def IPV6_ADDRESS_TABLE(self, _, payload):
         return self.parse_D(payload)
@@ -699,6 +713,16 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PROP_MAC_MAC_FILTER_LIST,
     SPINEL.PROP_MAC_FILTER_MODE:
         WPAN_PROP_HANDLER.PROP_MAC_FILTER_MODE,
+    SPINEL.PROP_DODAG_ROUTE_DEST:
+        WPAN_PROP_HANDLER.DODAG_ROUTE_DEST,
+    SPINEL.PROP_DODAG_ROUTE:
+        WPAN_PROP_HANDLER.DODAG_ROUTE,
+    SPINEL.PROP_NUM_CONNECTED_DEVICES:
+        WPAN_PROP_HANDLER.NUM_CONNECTED_DEVICES,
+    SPINEL.PROP_CONNECTED_DEVICES:
+        WPAN_PROP_HANDLER.CONNECTED_DEVICES,
+    SPINEL.PROP_REVOKE_GTK_HWADDR:
+        WPAN_PROP_HANDLER.PROP_REVOKE_GTK_HWADDR,
     SPINEL.PROP_IPV6_ADDRESS_TABLE:
         WPAN_PROP_HANDLER.IPV6_ADDRESS_TABLE,
     SPINEL.PROP_MULTICAST_LIST:

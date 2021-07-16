@@ -352,11 +352,14 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         # properties in TI Wi-SUN specific NET category
         'routerstate',
+        'dodagroute',
+        'revokeDevice',
 
         # properties in IPV6 category
         'ipv6addresstable',
         'multicastlist',
         'coap',
+        'numconnected',
         'connecteddevices',
 
         #reset cmd
@@ -1296,6 +1299,22 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         """
         self.handle_property(line, SPINEL.PROP_MAC_FILTER_MODE, mixed_format='b')
 
+    # for TI Wi-SUN specific NET properties
+    def do_revokeDevice(self, line):
+        """
+        revokeDevice
+
+            Write-only property intended to remove rogue devices from network.
+
+            > revokeDevice dead00beef00cafe
+            Done
+
+        """
+        if line == None or line == '':
+            print("\n Error: Please specify EUI-64 to whom access needs to be revoked")
+            return
+
+        self.handle_property(line, SPINEL.PROP_REVOKE_GTK_HWADDR, 'E')
 
     def do_ping(self, line):
         """
@@ -1632,31 +1651,128 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         return(ipv6AddrTableList)
 
-
-
     # for IPV6 properties
+    def do_numconnected(self, line):
+        """
+        Displays the number of Wi-SUN FAN nodes which have joined to the Wi-SUN FAN border router device.
+
+        > numconnected
+        2
+        Done
+        """
+        try:
+            # Only valid for BR
+            if self.prop_get_value(SPINEL.PROP_NET_ROLE) != 0:
+                print("Error: Device role must be Border Router to process this command")
+                return
+            router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+            if router_state < 5:
+                print("Error: Device must be in join state 5 (Successfully joined and operational) to process this command")
+                return
+
+            value = self.prop_get_value(SPINEL.PROP_NUM_CONNECTED_DEVICES)
+            if value is None:
+                print("Error: Could not retrieve connected devices from embedded device")
+                return
+            print(value)
+            print("Done")
+        except:
+            print("Fail")
+            print(traceback.format_exc())
+
     def do_connecteddevices(self, line):
         """
-        routingtable
-            Display the routing table for all joined nodes connected to the border router.
+        Displays the list of Wi-SUN FAN router nodes which have joined to the Wi-SUN FAN border router device.
 
-            >routingtable
-
-            fd00:7283:7e00:0:212:4b00:1ca1:9463; prefix_len = 64; nextHopAddr = IPv6Address('::'); lifetime = 41069
-            Done
+        > connecteddevices
+        List of connected devices currently in routing table:
+        fd00:7283:7e00:0:212:4b00:1ca1:727a
+        fd00:7283:7e00:0:212:4b00:1ca6:17ea
+        Done
         """
-        print("List of Connected Devices currently in routing table:\n")
-        for item in self.routing_table_dict:
-            key = item
-            print(str(key) + "\n")
-            #print("prefix_len = " + str(self.routing_table_dict[key]["prefixLen"]) + "; next_hop_address = " + str(self.routing_table_dict[key]["nextHopAddr"]) + "; lifetime = " + str(self.routing_table_dict[key]["lifetime"]))
+        try:
+            # Only valid for BR
+            if self.prop_get_value(SPINEL.PROP_NET_ROLE) != 0:
+                print("Error: Device role must be Border Router to process this command")
+                return
+            router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+            if router_state < 5:
+                print("Error: Device must be in join state 5 (Successfully joined and operational) to process this command")
+                return
 
-        if len(self.routing_table_dict) == 0:
-            print("No nodes currently in routing table.")
-        else:
+            num_addrs = 0
+            last_block = False
+            print("List of connected devices currently in routing table:")
+            while (not last_block):
+                value = self.prop_get_value(SPINEL.PROP_CONNECTED_DEVICES)
+                if value is None:
+                    print("Error: Could not retrieve connected devices from embedded device")
+                    return
+                # Break the byte stream into different entries
+                last_block = True if (value[0] >> 7) == 1 else False
+                addrEntries = [value[i:i + IPV6_ADDR_LEN] for i in range(1, len(value), IPV6_ADDR_LEN)]
+                for addrEntry in addrEntries:
+                    print(ipaddress.IPv6Address(addrEntry))
+                    num_addrs += 1
+
+            if (num_addrs == 0):
+                print("No nodes currently in routing table.")
+            else:
+                print("Number of connected devices: %d" % num_addrs)
             print("Done")
+        except:
+            print("Fail")
+            print(traceback.format_exc())
 
-    # for IPV6 properties
+    def do_dodagroute(self, line):
+        """
+        Displays the full routing path to a device with a specified IPv6 address. Also displays the path cost.
+
+        > dodagroute fd00:7283:7e00:0:212:4b00:10:50d0
+        Path cost: 2
+        fd00:7283:7e00:0:212:4b00:10:50d4
+        fd00:7283:7e00:0:212:4b00:1ca1:758e
+        fd00:7283:7e00:0:212:4b00:10:50d0
+        Done
+        """
+        try:
+            params = line.split(" ")
+            try:
+                ipaddr = ipaddress.IPv6Address(params[0])
+            except:
+                print("Error: Invalid IPv6 address")
+                return
+
+            # Only valid for BR
+            if self.prop_get_value(SPINEL.PROP_NET_ROLE) != 0:
+                print("Error: Device role must be Border Router to process this command")
+                return
+            router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+            if router_state < 5:
+                print("Error: Device must be in join state 5 (Successfully joined and operational) to process this command")
+                return
+
+            set_value = self.prop_set_value(SPINEL.PROP_DODAG_ROUTE_DEST, ipaddr.packed, str(len(ipaddr.packed)) + 's')
+            value = self.prop_get_value(SPINEL.PROP_DODAG_ROUTE)
+            if set_value is None or value is None or len(value) == 0:
+                print("Error: Could not retrieve dodag route to selected embedded device")
+                return
+
+            path_cost = value[0]
+            if path_cost == 0:
+                print("No path to device with specified IPv6 address")
+                return
+
+            # Break the byte stream into different entries
+            print("Path cost: %d" % value[0])
+            addrEntries = [value[i:i + IPV6_ADDR_LEN] for i in range(1, len(value), IPV6_ADDR_LEN)]
+            for addrEntry in addrEntries:
+                print(ipaddress.IPv6Address(addrEntry))
+            print("Done")
+        except:
+            print("Fail")
+            print(traceback.format_exc())
+
     def do_ipv6addresstable(self, line):
         """
         ipv6addresstable
