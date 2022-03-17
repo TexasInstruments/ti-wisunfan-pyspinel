@@ -69,6 +69,10 @@ class SPINEL(object):
     PROP_PHY__BEGIN = 0x20
     PROP_PHY_CCA_THRESHOLD = PROP_PHY__BEGIN + 4  # < dBm [c]
     PROP_PHY_TX_POWER = PROP_PHY__BEGIN + 5  # < [c]
+
+    PROP_PHY_NUM_NBRS = PROP_PHY__BEGIN + 6  # < dBm [c]
+    PROP_PHY_NBR_METRICS = PROP_PHY__BEGIN + 7  # < dBm [c]
+
     PROP_PHY__END = 0x30
 
     PROP_PHY_EXT__BEGIN = 0x1200

@@ -442,6 +442,12 @@ class SpinelPropertyHandler(SpinelCodec):
     def PHY_TX_POWER(self, _, payload):
         return self.parse_c(payload)
 
+    def PHY_NUM_NBRS(self, _, payload):
+        return self.parse_c(payload)
+
+    def PHY_NBR_METRICS(self, _, payload):
+        return self.parse_D(payload)
+
     def MAC_15_4_PANID(self, _, payload):
         return self.parse_S(payload)
 
@@ -665,6 +671,10 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PHY_CCA_THRESHOLD,
     SPINEL.PROP_PHY_TX_POWER:
         WPAN_PROP_HANDLER.PHY_TX_POWER,
+    SPINEL.PROP_PHY_NUM_NBRS:
+        WPAN_PROP_HANDLER.PHY_NUM_NBRS,
+    SPINEL.PROP_PHY_NBR_METRICS:
+        WPAN_PROP_HANDLER.PHY_NBR_METRICS,
     SPINEL.PROP_MAC_15_4_PANID:
         WPAN_PROP_HANDLER.MAC_15_4_PANID,
     SPINEL.PROP_NET_IF_UP:

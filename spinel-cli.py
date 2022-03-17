@@ -321,6 +321,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         # properties in PHY category
         'ccathreshold',
         'txpower',
+        'rssi',
 
         # properties in MAC category
         'panid',
@@ -794,7 +795,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         """
         self.handle_property(line, SPINEL.PROP_PHY_CCA_THRESHOLD, mixed_format='b')
 
-
     def do_txpower(self, line):
         """
         txpower
@@ -813,6 +813,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             Done
         """
         self.handle_property(line, SPINEL.PROP_PHY_TX_POWER, mixed_format='b')
+
 
     # for MAC properties
     def do_panid(self, line):
@@ -833,6 +834,31 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             Done
         """
         self.handle_property(line, SPINEL.PROP_MAC_15_4_PANID, 'H')
+
+    def do_rssi(self, line):
+        """
+        rssi
+
+            Get the rssi_in and rssi_out values of the neighbor nodes.
+
+            > rssi
+            Number of Neighbor Nodes = 2
+            Neighbor Node RSSI metrics are (EUI, RSSI_IN, RSSI_OUT):
+            00124b001ca19463, -22.0dBm, -23.0dBm
+            00124b001ca13486, -32.0dBm, -33.0dBm
+        """
+        num_nbrs = self.prop_get_value(SPINEL.PROP_PHY_NUM_NBRS)
+        print("Number of Neighbor Nodes = " + str(num_nbrs))
+        print("Neighbor Node RSSI metrics are (EUI, RSSI_IN, RSSI_OUT): ")
+
+        for i in range(0,num_nbrs):
+            nbr_metric = self.prop_get_value(SPINEL.PROP_PHY_NBR_METRICS)
+            #print(nbr_metric)
+            rssi_in = int.from_bytes(nbr_metric[8:10], "little", signed=False)
+            rssi_out = int.from_bytes(nbr_metric[10:12], "little", signed=False)
+            rssi_in_dBm = (rssi_in/8) - 174
+            rssi_out_dBm = (rssi_out/8) - 174
+            print(binascii.hexlify(nbr_metric[:8]).decode('utf8') + ", " + str(rssi_in_dBm) + "dBm, " + str(rssi_out_dBm) + "dBm")
 
     # for NET properties
     def complete_ifconfig(self, text, _line, _begidx, _endidx):
@@ -986,12 +1012,10 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             > networkname wisunnet
             Done
         """
-
         self.handle_property(line, SPINEL.PROP_NET_NETWORK_NAME, 'U')
 
 
     # for TI Wi-SUN specific PHY properties
-
     def do_region(self, line):
         """
         region
@@ -1247,7 +1271,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         """
         self.handle_property(line, SPINEL.PROP_MAC_BC_INTERVAL, mixed_format = 'L')
-
 
     def do_ucchfunction(self, line):
         """
