@@ -200,7 +200,7 @@ Done
 
 #### ifconfig
 
-Bring up or down the Wi-SUN FAN Network Interface.
+Bring up or down the Wi-SUN FAN Network Interface. ifconfig down functionality is currently not implemented and will be done in future.
 
 ```bash
 spinel-cli > ifconfig up
@@ -209,7 +209,8 @@ Done
 
 #### wisunstack
 
-Display the Operational status of the Wi-SUN FAN network. Can also be used to enable/disable Wi-SUN stack operation and attach to/detach from a Wi-SUN network. "wisunstack start" command should be preceeded by "ifconfig up" command. For router node, even though the stack is brought up, it takes some time for the node to join the network and become operational. Refer to routerstate command for more info.
+Display the Operational status of the Wi-SUN FAN network. Can also be used to enable/disable Wi-SUN stack operation and attach to/detach from a Wi-SUN network. "wisunstack start" command should be preceeded by "ifconfig up" command. For router node, even though the stack is brought up, it takes some time for the node to join the network and become operational. Refer to routerstate command for more info. 
+wisunstack stop functionality is currently not implemented and will be done in future. Till then use 'reset' command to stop all operations and issue 'ifconfig up' and 'wisunstack start' to start the Wi-SUN network again.
 
 ```bash
 spinel-cli > wisunstack start
@@ -266,7 +267,7 @@ Done
 
 #### ping
 
-Send an ICMPv6 Echo Request.
+Send an ICMPv6 Echo Request. Prints the received ping response. Key in Enter to get the command prompt back, if needed. 
 
 ```bash
 spinel-cli > ping fd00:7283:7e00:0:212:4b00:1ca1:9463

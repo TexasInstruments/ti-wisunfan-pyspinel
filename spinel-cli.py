@@ -532,7 +532,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             value = self.prop_set_value(prop_id, value, py_format)
         else:
             value = self.prop_get_value(prop_id)
-
         return value
 
     @classmethod
@@ -719,7 +718,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         print(heap_stats.heap().byrcs)
 
 
-	# Wi-SUN CLI commands
+    # Wi-SUN CLI commands
 
     # for Core properties
     def do_protocolversion(self, line):
@@ -795,6 +794,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         """
         self.handle_property(line, SPINEL.PROP_PHY_CCA_THRESHOLD, mixed_format='b')
 
+
     def do_txpower(self, line):
         """
         txpower
@@ -813,27 +813,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             Done
         """
         self.handle_property(line, SPINEL.PROP_PHY_TX_POWER, mixed_format='b')
-
-
-    # for MAC properties
-    def do_panid(self, line):
-        """
-        panid
-
-            Get the IEEE 802.15.4 PAN ID value. Applicable on Border Router side only.
-
-            > panid
-            0xdead
-            Done
-
-        panid <panid>
-
-            Set the IEEE 802.15.4 PAN ID value.
-
-            > panid 0xdead
-            Done
-        """
-        self.handle_property(line, SPINEL.PROP_MAC_15_4_PANID, 'H')
 
     def do_rssi(self, line):
         """
@@ -860,6 +839,26 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             rssi_out_dBm = (rssi_out/8) - 174
             print(binascii.hexlify(nbr_metric[:8]).decode('utf8') + ", " + str(rssi_in_dBm) + "dBm, " + str(rssi_out_dBm) + "dBm")
 
+    # for MAC properties
+    def do_panid(self, line):
+        """
+        panid
+
+            Get the IEEE 802.15.4 PAN ID value. Applicable on Border Router side only.
+
+            > panid
+            0xdead
+            Done
+
+        panid <panid>
+
+            Set the IEEE 802.15.4 PAN ID value.
+
+            > panid 0xdead
+            Done
+        """
+        self.handle_property(line, SPINEL.PROP_MAC_15_4_PANID, 'H')
+
     # for NET properties
     def complete_ifconfig(self, text, _line, _begidx, _endidx):
         """ Subcommand completion handler for ifconfig command. """
@@ -877,7 +876,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         ifconfig down
 
-            Bring down the Wi-SUN Network interface.
+            Bring down the Wi-SUN Network interface. 
+            Currently not implemented. Will be implemented in future.
 
             > ifconfig down
             Done
@@ -931,6 +931,9 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         wisunstack stop
 
             Disable Wi-SUN stack operation and detach from a Wi-SUN network.
+            Currently not implemented. Will be implemented in future.
+            Till then use 'reset' command to stop all operations and issue
+            'ifconfig up' and 'wisunstack start' to start the Wi-SUN network again.
 
             > wisunstack stop
             Done
@@ -1012,10 +1015,12 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             > networkname wisunnet
             Done
         """
+
         self.handle_property(line, SPINEL.PROP_NET_NETWORK_NAME, 'U')
 
 
     # for TI Wi-SUN specific PHY properties
+
     def do_region(self, line):
         """
         region
@@ -1271,6 +1276,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         """
         self.handle_property(line, SPINEL.PROP_MAC_BC_INTERVAL, mixed_format = 'L')
+
 
     def do_ucchfunction(self, line):
         """
