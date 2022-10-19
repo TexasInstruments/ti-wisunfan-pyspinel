@@ -98,6 +98,7 @@ COAP_RSP_CODE_SERVICE_UNAVAILABLE = (5,3)
 COAP_RSP_CODE_GATEWAY_TIMEOUT     = (5,4)
 COAP_RSP_CODE_PROXY_NOT_SUPPORTED = (5,5)
 
+COAP_OPTION_NONE           = 0
 COAP_OPTION_IF_MATCH       = 1
 COAP_OPTION_URI_HOST       = 3
 COAP_OPTION_ETAG           = 4
@@ -155,6 +156,7 @@ COAP_CODE_NAME_LOOKUP = {
 }
 
 COAP_OPTION_NAME_LOOKUP = {
+    COAP_OPTION_NONE          : "None",
     COAP_OPTION_IF_MATCH      : "If-Match",
     COAP_OPTION_URI_HOST      : "Uri-Host",
     COAP_OPTION_ETAG          : "ETag",
@@ -791,9 +793,10 @@ class CoAPHeader(ConvertibleToBytes, BuildableFromBytes):
         output_bytes += struct.pack(">B", version_type_tkl)
         output_bytes += struct.pack(">B", code_byte)
         output_bytes += struct.pack(">H", self.msg_id)
+        temp_token = self.token
         for _ in range(self.tkl):
-            output_bytes += struct.pack(">B", self.token & 0xFF)
-            self.token >> 8
+            output_bytes += struct.pack(">B", temp_token & 0xFF)
+            temp_token = temp_token >> 8
 
         prev_option_num = 0
         for option in self.options:

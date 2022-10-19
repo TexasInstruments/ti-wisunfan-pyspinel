@@ -25,6 +25,7 @@ import time
 import traceback
 import random
 import importlib
+import datetime
 
 import optparse
 
@@ -62,10 +63,48 @@ import spinel.common as common
 
 DEFAULT_BAUDRATE = 115200
 IPV6_ADDR_LEN    = 16
-COAP_PORT        = 5683
 
+# Platform type constants
+PLATFORM_TYPE_CC1312R7 = "CC1312R7"
+PLATFORM_TYPE_CC1352P7 = "CC1352P7"
+
+# Platform type mapping
+PLATFORM_CHIP_TYPE_LOOKUP = {
+    PLATFORM_TYPE_CC1312R7: 23,
+    PLATFORM_TYPE_CC1352P7: 26,
+}
+
+# COAP constants
+COAP_PORT        = 5683
+DEFAULT_TKL      = 8
+
+# COAP LED consts
 COAP_RLED_ID = 0
 COAP_GLED_ID = 1
+
+# OAD consts
+MCUBOOT_VERSION_BYTE = 20
+OAD_REQ_URI_BASE  = "oad" # Shared base URI for OAD
+OAD_FWV_REQ_URI   = "fwv" # Full URI: oad/fwv
+OAD_NOTIF_REQ_URI = "ntf" # Full URI: oad/ntf
+OAD_BLOCK_REQ_URI = "img" # Full URI: oad/img
+OAD_ABORT_URI     = "abort" # Full URI: oad/abort
+
+OAD_IMG_ID        = 123
+OAD_COMPLETE_FLAG = 0xFFFF
+
+# COAP LED globals
+coap_led_req_token = None
+
+# OAD globals
+oad_file = None
+oad_img_len = 0
+oad_block_size = 0
+oad_start_time = 0
+oad_log_filename = 0
+oad_log_str = None
+oad_fwv_req_token = None
+oad_ntf_req_token = None
 
 class IPv6Factory(object):
     coap_port_factory = {COAP_PORT: ipv6.CoAPFactory()}
@@ -176,10 +215,14 @@ class IPv6Factory(object):
 
         return ping_req.to_bytes()
 
-    def build_coap_request(self, src, dst, coap_type, coap_method_code, uri_path, option_list,
-                           led_target=None, led_state=None, hop_limit=64):
+    def build_coap_request(self, src, dst, coap_type, coap_method_code, uri_path, option_list=None,
+                           led_target=None, led_state=None, payload=None, hop_limit=64, msg_id=None,
+                           tkl= 0, token=None):
+        coap_options = []
+
         # Add and sort options
-        coap_options = [ipv6.CoAPOption(ipv6.COAP_OPTION_URI_PATH, uri_path.encode('utf-8'))]
+        if uri_path is not None:
+            coap_options.append(ipv6.CoAPOption(ipv6.COAP_OPTION_URI_PATH, uri_path.encode('utf-8')))
         if option_list is not None:
             coap_options += option_list
         coap_options.sort(key=lambda option: option.option_num)
@@ -188,6 +231,12 @@ class IPv6Factory(object):
         coap_payload = None
         if led_target is not None and led_state is not None:
             coap_payload = ipv6.CoAPPayload(bytes([led_target, led_state]))
+        elif payload is not None:
+            coap_payload = ipv6.CoAPPayload(bytes(payload))
+
+        # Set msg_id if not specified
+        if msg_id is None:
+            msg_id = self._get_next_coap_msg_id()
 
         coap_request = ipv6.IPv6Packet(
             ipv6_header=ipv6.IPv6Header(source_address=src,
@@ -197,8 +246,8 @@ class IPv6Factory(object):
             upper_layer_protocol=ipv6.UDPDatagram(
                 header=ipv6.UDPHeader(src_port=COAP_PORT, dst_port=COAP_PORT),
                 payload=ipv6.CoAP(
-                    header=ipv6.CoAPHeader(_type=coap_type, tkl=0, code=coap_method_code,
-                        msg_id=self._get_next_coap_msg_id(), token=None, options = coap_options
+                    header=ipv6.CoAPHeader(_type=coap_type, tkl=tkl, code=coap_method_code,
+                        msg_id=msg_id, token=token, options=coap_options
                     ),
                     payload=coap_payload
                 )
@@ -363,6 +412,11 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'numconnected',
         'connecteddevices',
 
+        # Wi-SUN OAD
+        'getoadfwver',
+        'startoad',
+        'getoadstatus',
+
         #reset cmd
         'reset',
         'nverase',
@@ -389,18 +443,20 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         except RuntimeError:
             pass
 
-
     def wpan_callback(self, prop, value, tid):
+        global oad_file
+        global oad_start_time
+        global oad_log_filename
+        global oad_log_str
+        global oad_block_size
+
         consumed = False
         if prop == SPINEL.PROP_STREAM_NET:
             consumed = True
-
             try:
                 pkt = self.ipv6_factory.from_bytes(value)
-
                 if CONFIG.DEBUG_LOG_PKT:
                     CONFIG.LOGGER.debug(pkt)
-
                 if pkt.upper_layer_protocol.type == ipv6.IPV6_NEXT_HEADER_ICMP:
                     if pkt.upper_layer_protocol.header.type == ipv6.ICMP_ECHO_REQUEST:
                         print("\nEcho request: %d bytes from %s to %s, icmp_seq=%d hlim=%d. Sending echo response." %
@@ -409,7 +465,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                pkt.ipv6_header.destination_address,
                                pkt.upper_layer_protocol.body.sequence_number,
                                pkt.ipv6_header.hop_limit))
-
                         # Generate echo response
                         ping_resp = self.ipv6_factory.build_icmp_echo_response(
                             src=pkt.ipv6_header.destination_address,
@@ -417,7 +472,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                             data=pkt.upper_layer_protocol.body.data,
                             identifier=pkt.upper_layer_protocol.body.identifier,
                             sequence_number=pkt.upper_layer_protocol.body.sequence_number)
-
                         self.wpan_api.ip_send(ping_resp)
                         # Let handler print result
                     elif pkt.upper_layer_protocol.header.type == ipv6.ICMP_ECHO_RESPONSE:
@@ -438,23 +492,151 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                         coap_pkt = pkt.upper_layer_protocol.payload
                         h = coap_pkt.header
                         p = coap_pkt.payload
-                        print("\nCoAP packet received from {}: type: {} ({}), token len: {}, code: {}.{:02d} ({}), msg_id: {}".format(
-                                 pkt.ipv6_header.source_address, h.type, ipv6.COAP_TYPE_NAME_LOOKUP[h.type],
-                                 h.tkl, h.code[0], h.code[1], ipv6.COAP_CODE_NAME_LOOKUP[h.code], h.msg_id))
                         option_str = "CoAP options:"
                         for option in h.options:
                             option_str += " {} ({}): {},".format(ipv6.COAP_OPTION_NAME_LOOKUP[option.option_num],
                                                                  option.option_num, option.option_val)
                         option_str = option_str[:-1] # Strip last comma
-                        print(option_str)
-                        if len(p.payload) == 2:
-                            rled_state = "Off" if int(p.payload[0]) == 0 else "On"
-                            gled_state = "Off" if int(p.payload[1]) == 0 else "On"
-                            print("RLED state: {}, GLED state: {}".format(rled_state, gled_state))
-                        elif len(p.payload) == 0:
-                            print("No CoAP payload")
+
+                        # Identify coap packet type
+                        coap_packet_type = None
+                        option_path_oad_next = False
+                        if h.type == ipv6.COAP_TYPE_ACK:
+                            if oad_fwv_req_token == h.token and h.code == ipv6.COAP_RSP_CODE_CONTENT:
+                                coap_packet_type = "OAD_FWV_RESP"
+                            elif oad_ntf_req_token == h.token and h.code == ipv6.COAP_RSP_CODE_CHANGED:
+                                coap_packet_type = "OAD_NTF_RESP"
+                            elif coap_led_req_token == h.token:
+                                if h.code == ipv6.COAP_RSP_CODE_CONTENT:
+                                    coap_packet_type = "OAD_LED_GET_RESP"
+                                elif h.code == ipv6.COAP_RSP_CODE_CHANGED:
+                                    coap_packet_type = "OAD_LED_SET_RESP"
                         else:
-                            print("Raw CoAP payload: {}".format(p.payload))
+                            for option in h.options:
+                                if option.option_num == ipv6.COAP_OPTION_URI_PATH and option.option_val == str.encode(OAD_REQ_URI_BASE):
+                                    option_path_count = True
+                                    continue
+                                if option_path_count:
+                                    option_path_count = False
+                                    if option.option_val == str.encode(OAD_BLOCK_REQ_URI):
+                                        if h.type == ipv6.COAP_TYPE_CON and h.code == ipv6.COAP_METHOD_CODE_GET and len(p.payload) == 5:
+                                            coap_packet_type = "OAD_BLOCK_REQ"
+                                            break
+                                    elif option.option_val == str.encode(OAD_ABORT_URI):
+                                        if h.type == ipv6.COAP_TYPE_NON and h.code == ipv6.COAP_METHOD_CODE_POST:
+                                            coap_packet_type = "OAD_ABORT_REQ"
+                                            break
+
+                        # Print out coap packet info if not OAD block request
+                        # Block request will use separate print formatting due to large number of print statements
+                        if coap_packet_type != "OAD_BLOCK_REQ":
+                            print("\nCoAP packet received from {}: type: {} ({}), token: {}, code: {}.{:02d} ({}), msg_id: {}".format(
+                                     pkt.ipv6_header.source_address, h.type, ipv6.COAP_TYPE_NAME_LOOKUP[h.type],
+                                     h.token, h.code[0], h.code[1], ipv6.COAP_CODE_NAME_LOOKUP[h.code], h.msg_id))
+
+                        # Response cases for each coap packet type
+                        # OAD firmware version response
+                        if coap_packet_type == "OAD_FWV_RESP":
+                            img_id = p.payload[0]
+                            platform = p.payload[1]
+                            platform_str = None
+                            try:
+                                platform_str = next(key for key, value in PLATFORM_CHIP_TYPE_LOOKUP.items() if value == platform)
+                            except:
+                                platform_str = "Unknown"
+                            version = [p.payload[2], p.payload[3], 0, 0]
+                            version[2] = int.from_bytes(p.payload[4:6], "little")
+                            version[3] = int.from_bytes(p.payload[6:10], "little")
+                            print("Img ID: {}, Platform: {} ({}).".format(img_id, platform, platform_str))
+                            print("OAD firmware version: {}.{}.{}.{}".format(version[0], version[1], version[2], version[3]))
+                        # OAD notification response
+                        elif coap_packet_type == "OAD_NTF_RESP":
+                            print("OAD notification response received")
+                            status = p.payload[1]
+                            if status == 1:
+                                print("OAD upgrade accepted. Starting block transfer")
+                                # Start measuring OAD duration
+                                oad_start_time = time.time()
+                            elif status == 0:
+                                print("OAD upgrade rejected")
+                                self.cleanup_oad()
+                            else:
+                                print("Invalid OAD notification response status")
+                        # OAD block request
+                        elif coap_packet_type == "OAD_BLOCK_REQ":
+                            # Get OAD logger
+                            oad_logger = logging.getLogger('oad')
+
+                            # Parse oad block request packet
+                            oad_img_id = p.payload[0]
+                            oad_block_num = int.from_bytes(p.payload[1:3], "little")
+                            oad_total_blocks = int.from_bytes(p.payload[3:5], "little")
+                            src_addr = pkt.ipv6_header.destination_address
+                            dest_addr = pkt.ipv6_header.source_address
+                            oad_block_num_bytes = list(oad_block_num.to_bytes(2, "little"))
+
+                            # OAD block transfer end signal, close the file and ack the frame
+                            if oad_block_num == OAD_COMPLETE_FLAG:
+                                oad_duration = time.time() - oad_start_time
+                                oad_duration = str(datetime.timedelta(seconds=oad_duration))
+                                print("\nOAD complete! Duration: {}".format(oad_duration))
+                                self.cleanup_oad()
+                                oad_log_str = None
+                                coap_req = self.ipv6_factory.build_coap_request(format(src_addr), format(dest_addr), ipv6.COAP_TYPE_ACK,
+                                    ipv6.COAP_RSP_CODE_CONTENT, None, payload=None, msg_id=(h.msg_id+1), tkl=h.tkl, token=h.token)
+                                self.wpan_api.ip_send(coap_req)
+                                return
+
+                            # Calculate OAD block start byte, block size, and OAD duration
+                            oad_block_start = oad_block_num * oad_block_size
+                            oad_block_end = oad_block_start + oad_block_size
+                            if oad_block_end > oad_img_len:
+                                oad_block_end = oad_img_len
+                            oad_block_size = oad_block_end - oad_block_start
+                            oad_duration = time.time() - oad_start_time
+                            oad_duration = str(datetime.timedelta(seconds=oad_duration))
+                            oad_log_str = "Block {:04}/{:04} sent. Block size: {:03d}. Duration: {}".format(
+                                    oad_block_num + 1, oad_total_blocks, oad_block_size, oad_duration)
+                            oad_logger.info(oad_log_str)
+
+                            # Read oad image from file
+                            oad_payload = []
+                            try:
+                                oad_file.seek(oad_block_start, os.SEEK_SET)
+                                for _ in range (0, oad_block_size):
+                                    byte = oad_file.read(1)
+                                    oad_payload.append(int.from_bytes(byte, 'big'))
+                            except:
+                                print("\nError reading oad binary file")
+                                return False
+
+                            # Construct and send OAD block payload
+                            oad_payload = [oad_img_id] + oad_block_num_bytes + oad_payload
+                            coap_req = self.ipv6_factory.build_coap_request(format(src_addr), format(dest_addr), ipv6.COAP_TYPE_ACK,
+                                ipv6.COAP_RSP_CODE_CONTENT, None, payload=oad_payload, msg_id=(h.msg_id+1), tkl=h.tkl, token=h.token)
+                            self.wpan_api.ip_send(coap_req)
+                        # OAD abort request
+                        elif coap_packet_type == "OAD_ABORT_REQ":
+                            self.cleanup_oad()
+                            print("OAD aborted!")
+                            oad_log_str = None
+                            return
+                        # LED GET response
+                        elif coap_packet_type == "OAD_LED_GET_RESP":
+                            if len(p.payload) == 2:
+                                rled_state = "Off" if int(p.payload[0]) == 0 else "On"
+                                gled_state = "Off" if int(p.payload[1]) == 0 else "On"
+                                print("RLED state: {}, GLED state: {}".format(rled_state, gled_state))
+                            else:
+                                print("Error: invalid LED state")
+                        # LED PUT/POST response
+                        elif coap_packet_type == "OAD_LED_SET_RESP":
+                            print("LED state successfully set")
+                        else:
+                            if len(p.payload) == 0:
+                                print("No CoAP payload")
+                            else:
+                                print("Raw CoAP payload: {}".format(list(p.payload)))
                     else:
                         print("UDP packet received")
                 else:
@@ -620,6 +802,19 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         print("Done")
         return value
+
+    def cleanup_oad(self):
+        global oad_file
+        global oad_file_name
+
+        oad_logger = logging.getLogger('oad')
+        if oad_file is not None and not oad_file.closed:
+            oad_file.close()
+        if oad_logger is not None:
+            for handler in oad_logger.handlers:
+                if handler.baseFilename == oad_log_filename:
+                    oad_logger.removeHandler(handler)
+                    handler.close()
 
     def do_help(self, line):
         if line:
@@ -876,7 +1071,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         ifconfig down
 
-            Bring down the Wi-SUN Network interface. 
+            Bring down the Wi-SUN Network interface.
             Currently not implemented. Will be implemented in future.
 
             > ifconfig down
@@ -1564,6 +1759,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                 Get request with test option:
                     > coap fdde:ad00:beef:0:558:f56b:d688:799 get con led --test_option 3 hostname
         """
+        global coap_led_req_token 
+
         router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
         if router_state < 5:
             print("Error: Device must be in join state 5 (Successfully joined and operational) to process coap commands")
@@ -1626,16 +1823,22 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                             print("Invalid LED state, must be 0 or 1")
                             return
 
+            # Generate a random token and save it for ACK usage later
+            coap_led_req_token = random.getrandbits(DEFAULT_TKL*8)
+
             if params[1] == "get":
                 coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
-                    ipv6.COAP_METHOD_CODE_GET, uri_path, option_list, led_target, led_state)
+                    ipv6.COAP_METHOD_CODE_GET, uri_path, option_list, led_target, led_state,
+                    tkl=DEFAULT_TKL, token=coap_led_req_token)
             elif params[1] == "put" or params[1] == "post":
                 if params[1] == "put":
                     coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
-                        ipv6.COAP_METHOD_CODE_PUT, uri_path, option_list, led_target, led_state)
+                        ipv6.COAP_METHOD_CODE_PUT, uri_path, option_list, led_target, led_state,
+                        tkl=DEFAULT_TKL, token=coap_led_req_token)
                 else:
                     coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
-                        ipv6.COAP_METHOD_CODE_POST, uri_path, option_list, led_target, led_state)
+                        ipv6.COAP_METHOD_CODE_POST, uri_path, option_list, led_target, led_state,
+                        tkl=DEFAULT_TKL, token=coap_led_req_token)
             else:
                 print("Invalid CoAP request code")
                 return
@@ -1646,6 +1849,218 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         except:
             print("Fail")
             print(traceback.format_exc())
+
+    def do_getoadfwver(self, line):
+        """
+        getoadfwver <ipv6 address>
+            Get the firmware version of the image on a CoAP OAD-enabled device.
+
+            Parameters:
+                ipv6 address:   Destination IPv6 address of the device to get the address from. Multicast addresses are not
+                                supported.
+
+            Example:
+                > getoadfwver fdde:ad00:beef:0:558:f56b:d688:799
+                Img ID: 123, Platform: 23 (CC1312R7)
+                OAD firmware version: 1.0.0.0
+        """
+        global oad_fwv_req_token 
+
+        # Verify and assign paramters
+        params = line.split(" ")
+        if len(params) != 1:
+            print("Invalid number of parameters")
+            return
+        dest_addr = params[0]
+
+        # Check router state
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process coap commands")
+            return
+        try:
+            # Get source address
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            src_addr = None
+            for i in range(0,len(ipv6AddrTableList)):
+                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                    src_addr = str(ipv6AddrTableList[i]["ipv6Addr"])
+                    break
+            if src_addr is None:
+                print("Cannot perform CoAP request as device does not have a valid source IP address")
+                return
+
+            # Generate a random token and save it for ACK usage later
+            oad_fwv_req_token = random.getrandbits(DEFAULT_TKL*8)
+
+            # Construct coap message
+            coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                ipv6.COAP_METHOD_CODE_GET, OAD_REQ_URI_BASE + '/' + OAD_FWV_REQ_URI, tkl=DEFAULT_TKL,
+                token=oad_fwv_req_token)
+
+            # Send coap message
+            if coap_req is not None:
+                self.wpan_api.ip_send(coap_req)
+                print("Sending OAD firmware version request message")
+                # Let handler print result
+            else:
+                print("CoAP message not generated successfully")
+        except:
+            print("Failed to send firmware version request")
+            print(traceback.format_exc())
+
+    def do_startoad(self, line):
+        """
+        startoad <ipv6 address> <platform type> <block size> <oad image path>
+            Start a CoAP OAD with a target OAD device.
+
+            Parameters:
+                ipv6 address:    Destination IPv6 address of target OAD-enabled device to upgrade the firmware of.
+                                 Multicast addresses are not supported.
+                platform type:   Platform of the target device to be upgraded. Supported platforms are CC1312R7 and
+                                 CC1352P7.
+                block size:      Block size (bytes) to use for block transfer. Recommended to use between 128-1024 byte blocks.
+                                 Very small block size incurs unnecessary frame overhead, while very large block size results
+                                 in fragmentation overhead.
+                oad image path:  Relative file path of the oad image binary file to upgrade the target OAD device
+                                 with.
+            Example:
+                > startoad fdde:ad00:beef:0:558:f56b:d688:799 CC1312R7 128 ns_coap_oad_offchip_LP_CC1312R7_tirtos7_ticlang.bin
+                Sending OAD notification request message
+                OAD notification response received
+                OAD upgrade accepted. Starting block transfer
+        """
+        global oad_file
+        global oad_img_len
+        global oad_ntf_req_token 
+        global oad_start_time
+        global oad_log_filename
+        global oad_block_size
+
+        # Verify and assign paramters
+        params = line.split(" ")
+        if len(params) != 4:
+            print("Invalid number of parameters")
+            return
+        dest_addr = params[0]
+        platform_type = params[1]
+        oad_block_size = int(params[2])
+        img_path = params[3]
+        if platform_type in PLATFORM_CHIP_TYPE_LOOKUP:
+            platform_type = PLATFORM_CHIP_TYPE_LOOKUP[platform_type]
+        else:
+            print("Error: Unsupported platform. Supported platforms are CC1312R7 and CC1352P7.")
+            return False
+
+        self.cleanup_oad()
+        oad_file = None
+        # Open OAD img file
+        try:
+            oad_file = open(img_path, "rb")
+            oad_file.seek(0, os.SEEK_END)
+            oad_img_len = oad_file.tell()
+            oad_file.seek(0, os.SEEK_SET)
+            print("OAD image filesize: ", oad_img_len, "bytes")
+        except:
+            print("Error reading oad image file")
+            self.cleanup_oad()
+            return False
+
+        # Open OAD logging file
+        timestamp = time.strftime("%Y-%m-%d-T%H-%M-%S")
+        dest_addr_str = dest_addr.replace(':', '-')
+        oad_log_filename = "oad_log_{}_{}.txt".format(dest_addr_str, timestamp)
+        oad_logger = None
+        oad_log_file = None
+        try: 
+            oad_logger = logging.getLogger('oad')
+            oad_logger.setLevel(logging.INFO)
+            oad_logger.progagate = False
+            oad_log_file = logging.FileHandler(oad_log_filename)
+            oad_log_filename = oad_log_file.baseFilename # Convert filename to full base filename
+            print(oad_log_filename)
+            oad_logger.addHandler(oad_log_file)
+        except:
+            print("Error opening oad log file")
+            self.cleanup_oad()
+            return False
+
+        # Check router state
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process coap commands")
+            return
+
+        try:
+            # Get source address
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            src_addr = None
+            for i in range(0,len(ipv6AddrTableList)):
+                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                    src_addr = str(ipv6AddrTableList[i]["ipv6Addr"])
+                    break
+            if src_addr is None:
+                print("Cannot perform CoAP OAD as device does not have a valid source IP address")
+                return
+
+            # Read oad image from file
+            mcuboot_version = []
+            try:
+                oad_file.seek(MCUBOOT_VERSION_BYTE, os.SEEK_SET)
+                for _ in range(0, 8):
+                    byte = oad_file.read(1)
+                    mcuboot_version.append(int.from_bytes(byte, 'big'))
+            except:
+                print("Error reading mcuboot version from oad image")
+                return False
+
+            # Build ntf req payload
+            img_len_bytes = list(oad_img_len.to_bytes(4, "little"))
+            oad_block_size_lower = oad_block_size & 0xFF
+            oad_block_size_upper = oad_block_size >> 8
+            payload_notif_req = [
+                OAD_IMG_ID,                # img_id
+                platform_type,             # platform/chip type
+                oad_block_size_lower,      # block_size
+                oad_block_size_upper,
+            ] + img_len_bytes + mcuboot_version
+
+            # Generate a random token and save it for ACK usage later
+            oad_ntf_req_token = random.getrandbits(DEFAULT_TKL*8)
+
+            # Construct coap message
+            coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                ipv6.COAP_METHOD_CODE_PUT, OAD_REQ_URI_BASE + '/' + OAD_NOTIF_REQ_URI, payload=payload_notif_req,
+                tkl=DEFAULT_TKL, token=oad_ntf_req_token)
+
+            # Send coap message
+            if coap_req is not None:
+                self.wpan_api.ip_send(coap_req)
+                print("Sending OAD notification request message")
+                print("Logging results in {}".format(oad_log_filename))
+                # Let handler print result
+            else:
+                print("CoAP message not generated successfully")
+        except:
+            print("Failed to start OAD")
+            print(traceback.format_exc())
+
+    def do_getoadstatus(self, line):
+        """
+        getoadstatus
+            Check the status of the ongoing OAD.
+
+            Example:
+                > getoadstatus
+                  Block 0154/2752 sent. Block size: 128. Duration: 0:00:25.804326
+        """
+        global oad_log_str
+        if oad_log_str is not None:
+            print(oad_log_str)
+        else:
+            print("No OAD in progress")
 
     #Helper util function to parse received PROP_IPV6_ADDRESS_TABLE property info
     def _parse_ipv6addresstable_property(self, propIPv6AddrTabInfo):

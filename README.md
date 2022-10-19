@@ -323,3 +323,34 @@ fd00:7283:7e00:0:212:4b00:1ca1:758e
 fd00:7283:7e00:0:212:4b00:10:50d0
 Done
 ```
+
+#### getoadfwver
+
+Get the firmware version of the image on a CoAP OAD-enabled device. Note that CoAP OAD projects are currently not available. CoAP OAD projects will be available in the Q4 2022 SimpleLink SDK release.
+
+```bash
+> getoadfwver fdde:ad00:beef:0:558:f56b:d688:799
+Img ID: 123, Platform: 23 (CC1312R7)
+OAD firmware version: 1.0.0.0
+```
+
+#### startoad
+
+Start a CoAP OAD with a target CoAP OAD-enabled device. Provide the platform type, block size, and image binary path. Note that the target device's OAD method (offchip/onchip) must match the OAD method of the sent oad image binary file. Note that CoAP OAD projects are currently not available. CoAP OAD projects will be available in the Q4 2022 SimpleLink SDK release.
+
+
+```bash
+> startoad fdde:ad00:beef:0:558:f56b:d688:799 CC1312R7 128 ns_coap_oad_offchip_LP_CC1312R7_tirtos7_ticlang.bin
+Sending OAD notification request message
+OAD notification response received
+OAD upgrade accepted. Starting block transfer
+```
+
+#### getoadstatus
+
+Check the status of an ongoing OAD. Note that CoAP OAD projects are currently not available. CoAP OAD projects will be available in the Q4 2022 SimpleLink SDK release.
+
+```bash
+> getoadstatus
+Block 0154/2752 sent. Block size: 128. Duration: 0:00:25.804326
+```
