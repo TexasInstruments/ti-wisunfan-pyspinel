@@ -500,6 +500,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
                         # Identify coap packet type
                         coap_packet_type = None
+                        option_path_count = False
                         option_path_oad_next = False
                         if h.type == ipv6.COAP_TYPE_ACK:
                             if oad_fwv_req_token == h.token and h.code == ipv6.COAP_RSP_CODE_CONTENT:
