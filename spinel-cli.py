@@ -26,6 +26,7 @@ import traceback
 import random
 import importlib
 import datetime
+import json
 
 import optparse
 
@@ -67,20 +68,27 @@ IPV6_ADDR_LEN    = 16
 # Platform type constants
 PLATFORM_TYPE_CC1312R7 = "CC1312R7"
 PLATFORM_TYPE_CC1352P7 = "CC1352P7"
+PLATFORM_TYPE_CC1314R10 = "CC1314R10"
+PLATFORM_TYPE_CC1354P10 = "CC1354P10"
 
 # Platform type mapping
 PLATFORM_CHIP_TYPE_LOOKUP = {
     PLATFORM_TYPE_CC1312R7: 23,
     PLATFORM_TYPE_CC1352P7: 26,
+    PLATFORM_TYPE_CC1314R10: 30,
+    PLATFORM_TYPE_CC1354P10: 31,
 }
 
 # COAP constants
-COAP_PORT        = 5683
-DEFAULT_TKL      = 8
+COAP_PORT    = 5683
+DEFAULT_TKL  = 8
 
 # COAP LED consts
 COAP_RLED_ID = 0
 COAP_GLED_ID = 1
+
+# COAP node join indication URI
+COAP_JOIN_URI = "join"
 
 # OAD consts
 MCUBOOT_VERSION_BYTE = 20
@@ -92,6 +100,16 @@ OAD_ABORT_URI     = "abort" # Full URI: oad/abort
 
 OAD_IMG_ID        = 123
 OAD_COMPLETE_FLAG = 0xFFFF
+
+# PANID allow/denylist consts
+PANID_LIST_BASE_URI  = "panid"
+PANID_LIST_ALLOW_URI = "allow"
+PANID_LIST_DENY_URI  = "deny"
+PANID_LIST_BULK_URI  = "bulk"
+PAN_REDISCOVER_URI   = "rediscover"
+PANID_LIST_ACTION_ADD = 0
+PANID_LIST_ACTION_DEL = 1
+PANID_LIST_TIMEOUT_SEC = 1800
 
 # COAP LED globals
 coap_led_req_token = None
@@ -105,6 +123,12 @@ oad_log_filename = 0
 oad_log_str = None
 oad_fwv_req_token = None
 oad_ntf_req_token = None
+
+# PANID allow/denylist globals
+panid_list_get_token = None
+panid_list_set_token = None
+panid_list_bulk_set_token = None
+pan_rediscover_req_token = None
 
 class IPv6Factory(object):
     coap_port_factory = {COAP_PORT: ipv6.CoAPFactory()}
@@ -315,6 +339,11 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         self.wpan_api.callback_register(SPINEL.PROP_ROUTING_TABLE_UPDATE,
                                         self.wpan_routing_table_update_cb)
 
+        # Default panid list json file
+        # self.panid_list_json_path = "panid_list_example.json"
+        self.panid_list_json_path = ""
+        self.my_panid = self.prop_get_value(SPINEL.PROP_MAC_15_4_PANID)
+
         Cmd.__init__(self)
         Cmd.identchars = string.ascii_letters + string.digits + '-'
 
@@ -338,10 +367,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             print("Module readline unavailable")
         else:
             import rlcompleter
-            if 'libedit' in readline.__doc__:
-                readline.parse_and_bind('bind ^I rl_complete')
-            else:
-                readline.parse_and_bind('tab: complete')
+            readline.parse_and_bind('bind ^I rl_complete')
 
         # if hasattr(stream, 'pipe'):
         #     self.wpan_api.queue_wait_for_prop(SPINEL.PROP_LAST_STATUS,
@@ -366,6 +392,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'ncpversion',
         'interfacetype',
         'hwaddress',
+        'trxfwversion',
+        'fwversions',
 
         # properties in PHY category
         'ccathreshold',
@@ -417,6 +445,12 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'startoad',
         'getoadstatus',
 
+        # PAN ID allow/denylist
+        'setpanidlistjson',
+        'getpanidlist',
+        'setpanidlist',
+        'panrediscover',
+
         #reset cmd
         'reset',
         'nverase',
@@ -449,6 +483,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         global oad_log_filename
         global oad_log_str
         global oad_block_size
+        global panid_list_bulk_set_token
 
         consumed = False
         if prop == SPINEL.PROP_STREAM_NET:
@@ -501,7 +536,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                         # Identify coap packet type
                         coap_packet_type = None
                         option_path_count = False
-                        option_path_oad_next = False
+                        option_path_type = None
                         if h.type == ipv6.COAP_TYPE_ACK:
                             if oad_fwv_req_token == h.token and h.code == ipv6.COAP_RSP_CODE_CONTENT:
                                 coap_packet_type = "OAD_FWV_RESP"
@@ -509,24 +544,43 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                 coap_packet_type = "OAD_NTF_RESP"
                             elif coap_led_req_token == h.token:
                                 if h.code == ipv6.COAP_RSP_CODE_CONTENT:
-                                    coap_packet_type = "OAD_LED_GET_RESP"
+                                    coap_packet_type = "LED_GET_RESP"
                                 elif h.code == ipv6.COAP_RSP_CODE_CHANGED:
-                                    coap_packet_type = "OAD_LED_SET_RESP"
+                                    coap_packet_type = "LED_SET_RESP"
+                            elif panid_list_get_token == h.token:
+                                coap_packet_type = "PANID_LIST_GET_RESP"
+                            elif panid_list_set_token == h.token:
+                                coap_packet_type = "PANID_LIST_SET_RESP"
+                            elif panid_list_bulk_set_token == h.token:
+                                coap_packet_type = "PANID_LIST_BULK_RESP"
+                            elif pan_rediscover_req_token == h.token:
+                                coap_packet_type = "PAN_REDISCOVER_RESP"
                         else:
                             for option in h.options:
-                                if option.option_num == ipv6.COAP_OPTION_URI_PATH and option.option_val == str.encode(OAD_REQ_URI_BASE):
-                                    option_path_count = True
-                                    continue
+                                if option.option_num == ipv6.COAP_OPTION_URI_PATH:
+                                    if option.option_val == str.encode(OAD_REQ_URI_BASE):
+                                        option_path_count = True
+                                        option_path_type = OAD_REQ_URI_BASE
+                                        continue
+                                    elif option.option_val == str.encode(COAP_JOIN_URI):
+                                        # Note: This is not a join request, but a join indication. The node has already joined the network.
+                                        # The coap message type is a coap post request.
+                                        coap_packet_type = "COAP_JOIN_REQ"
+                                    else:
+                                        print("Invalid coap option base URI")
+                                        coap_packet_type = None
                                 if option_path_count:
                                     option_path_count = False
-                                    if option.option_val == str.encode(OAD_BLOCK_REQ_URI):
-                                        if h.type == ipv6.COAP_TYPE_CON and h.code == ipv6.COAP_METHOD_CODE_GET and len(p.payload) == 5:
-                                            coap_packet_type = "OAD_BLOCK_REQ"
-                                            break
-                                    elif option.option_val == str.encode(OAD_ABORT_URI):
-                                        if h.type == ipv6.COAP_TYPE_NON and h.code == ipv6.COAP_METHOD_CODE_POST:
-                                            coap_packet_type = "OAD_ABORT_REQ"
-                                            break
+                                    if option_path_type == OAD_REQ_URI_BASE:
+                                        if option.option_val == str.encode(OAD_BLOCK_REQ_URI):
+                                            if h.type == ipv6.COAP_TYPE_CON and h.code == ipv6.COAP_METHOD_CODE_GET and len(p.payload) == 5:
+                                                coap_packet_type = "OAD_BLOCK_REQ"
+                                                break
+                                        elif option.option_val == str.encode(OAD_ABORT_URI):
+                                            if h.type == ipv6.COAP_TYPE_NON and h.code == ipv6.COAP_METHOD_CODE_POST:
+                                                coap_packet_type = "OAD_ABORT_REQ"
+                                                break
+                                    option_path_type = None
 
                         # Print out coap packet info if not OAD block request
                         # Block request will use separate print formatting due to large number of print statements
@@ -623,7 +677,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                             oad_log_str = None
                             return
                         # LED GET response
-                        elif coap_packet_type == "OAD_LED_GET_RESP":
+                        elif coap_packet_type == "LED_GET_RESP":
                             if len(p.payload) == 2:
                                 rled_state = "Off" if int(p.payload[0]) == 0 else "On"
                                 gled_state = "Off" if int(p.payload[1]) == 0 else "On"
@@ -631,8 +685,97 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                             else:
                                 print("Error: invalid LED state")
                         # LED PUT/POST response
-                        elif coap_packet_type == "OAD_LED_SET_RESP":
+                        elif coap_packet_type == "LED_SET_RESP":
                             print("LED state successfully set")
+                        elif coap_packet_type == "COAP_JOIN_REQ":
+                            dest_addr = pkt.ipv6_header.source_address # Dest addr for coap allow/denylist set
+                            src_addr  = pkt.ipv6_header.destination_address # Src addr (own ip addr, can be read from coap pkt)
+                            print("CoAP node with address {} joined!".format(dest_addr))
+
+                            # Read allow/deny list entry in json file
+                            try:
+                                # JSON PANID list not used, send empty filter lists
+                                if self.panid_list_json_path is None or not os.path.isfile(self.panid_list_json_path):
+                                    print("No PAN ID list JSON file found, no modifications to device PAN ID list")
+                                    payload = [0] * 6
+                                    panid_list_bulk_set_token = random.getrandbits(DEFAULT_TKL*8)
+                                    coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                                        ipv6.COAP_METHOD_CODE_PUT, PANID_LIST_BASE_URI + '/' + PANID_LIST_BULK_URI,
+                                        payload=payload, tkl=DEFAULT_TKL, token=panid_list_bulk_set_token)
+                                    self.wpan_api.ip_send(coap_req)
+                                    return
+                                # JSON PANID list used
+                                with open(self.panid_list_json_path) as fp:
+                                    panid_json = json.load(fp)
+                                    print("Setting coap node PAN ID list according to JSON file")
+
+                                    # Read EUI provided in join coap request
+                                    join_node_eui = list(p.payload)
+                                    join_node_eui_str = "".join("{:02X}".format(i) for i in join_node_eui)
+                                    allowlist = None
+                                    denylist = None
+                                    if join_node_eui_str in panid_json:
+                                        # Convert string entries to int
+                                        print("CoAP node EUI found in JSON, sending PAN ID list")
+                                        allowlist = [int(entry, 16) for entry in panid_json[join_node_eui_str]["allow"]]
+                                        denylist = [int(entry, 16) for entry in panid_json[join_node_eui_str]["deny"]]
+                                    else:
+                                        # If entry does not exist, it implies denylist with its own panid
+                                        print("CoAP node EUI not found in JSON, sending default denylist containing current PAN ID")
+                                        print("The node will try to join another PAN.")
+                                        allowlist = []
+                                        denylist = [self.my_panid]
+
+                                    # Format of COAP JOIN RESP payload:
+                                    # <2 byte allow/deny list timeout (seconds) +
+                                    # <2 byte allowlist len> + <2 byte denylist len> +
+                                    # <2 byte allowlist entry>*(allowlist len) + <2 byte denylist entry>*(denylist len)
+                                    payload = [PANID_LIST_TIMEOUT_SEC & 0xFF, PANID_LIST_TIMEOUT_SEC >> 8]
+                                    payload.extend([len(allowlist) & 0xFF, len(allowlist) >> 8])
+                                    payload.extend([len(denylist) & 0xFF, len(denylist) >> 8])
+                                    for panid in allowlist:
+                                        payload.extend([panid & 0xFF, panid >> 8])
+                                    for panid in denylist:
+                                        payload.extend([panid & 0xFF, panid >> 8])
+
+                                    # Send payload containing allow/deny list contents. Allow the coap node
+                                    # to decide whether to perform pan rediscovery.
+                                    # Generate a random token and save it for ACK usage later
+                                    panid_list_bulk_set_token = random.getrandbits(DEFAULT_TKL*8)
+                                    coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                                        ipv6.COAP_METHOD_CODE_PUT, PANID_LIST_BASE_URI + '/' + PANID_LIST_BULK_URI,
+                                        payload=payload, tkl=DEFAULT_TKL, token=panid_list_bulk_set_token)
+                                    self.wpan_api.ip_send(coap_req)
+                            except:
+                                print("Failed to send JSON PAN IDs to coap node")
+                                print(traceback.format_exc())
+                                return False
+                        elif coap_packet_type == "PANID_LIST_BULK_RESP":
+                            if h.code == ipv6.COAP_RSP_CODE_CHANGED or h.code == ipv6.COAP_RSP_CODE_VALID:
+                                print("JSON file PAN IDs added to PAN ID list.")
+                                if h.code == ipv6.COAP_RSP_CODE_CHANGED:
+                                    print("PAN rediscovery started")
+                                else: # h.code == ipv6.COAP_RSP_CODE_VALID:
+                                    print("PAN rediscovery not required, staying in network")
+                            else:
+                                print("Coap node failed to set JSON PAN IDs")
+                        elif coap_packet_type == "PANID_LIST_GET_RESP":
+                            list_size = int.from_bytes(p.payload[0:2], "little")
+                            if list_size == 0:
+                                print("PAN ID list is empty!")
+                            else:
+                                print("PAN ID list contents:")
+                                for i in range(list_size):
+                                    print(hex(int.from_bytes(p.payload[(i*2)+2:(i*2)+4], "little")))
+                        elif coap_packet_type == "PANID_LIST_SET_RESP":
+                            if h.code == ipv6.COAP_RSP_CODE_CREATED:
+                                print("PAN ID successfully added to list")
+                            elif h.code == ipv6.COAP_RSP_CODE_DELETED:
+                                print("PAN ID successfully removed from list")
+                            else:
+                                print("Error setting PAN ID list")
+                        elif(coap_packet_type == "PAN_REDISCOVER_RESP"):
+                            print("PAN rediscover successfully triggered\n")
                         else:
                             if len(p.payload) == 0:
                                 print("No CoAP payload")
@@ -916,6 +1059,40 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
     # Wi-SUN CLI commands
 
+    def do_testcommand(self, line):
+        """
+        testcommand
+            For internal testing purposes only.
+
+            testcommand <test command type> [test command parameters]
+
+            EDFE testing example:
+            > testcommand edfe on
+            Turn EDFE mode on
+
+            > testcommand edfe off
+            Turn EDFE mode off
+        """
+        params = line.split(" ")
+        if params[0] == "edfe":
+            if len(params) == 1:
+                value = self.prop_get_value(SPINEL.PROP_TEST_COMMAND)
+                if value != None:
+                    map_arg_value = {
+                        0: "off",
+                        1: "on",
+                    }
+                    print("EDFE " + map_arg_value[value])
+            elif len(params) == 2:
+                if params[1] == "on":
+                    print("Turn EDFE mode on")
+                    self.prop_set(SPINEL.PROP_TEST_COMMAND, '1')
+                elif params[1] == "off":
+                    print("Turn EDFE mode off")
+                    self.prop_set(SPINEL.PROP_TEST_COMMAND, '0')
+            else:
+                print("Invalid number of parameters")
+
     # for Core properties
     def do_protocolversion(self, line):
         """
@@ -937,7 +1114,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             Print the build version information.
 
             > ncpversion
-            TIWISUNFAN/1.0; DEBUG; Feb 7 2021 18:22:04
+            TIWISUNFAN/1.0.1; DEBUG; Feb 7 2021 18:22:04
             Done
         """
         self.handle_property(line, SPINEL.PROP_NCP_VERSION, 'U')
@@ -968,6 +1145,47 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         """
         self.handle_property(line, SPINEL.PROP_HWADDR, 'E')
+
+    def do_trxfwversion(self, line):
+        """
+        trxfwversion
+
+            Get the TRX FW version.
+
+            > trxfwversion
+            0.11.0.22.3316673118
+            Done
+
+        """
+        value = self.prop_get_value(SPINEL.PROP_TRXFWVER)
+        major = int.from_bytes(value[:1], "little", signed=False)
+        minor = int.from_bytes(value[1:2], "little", signed=False)
+        patch = int.from_bytes(value[2:3], "little", signed=False)
+        build = int.from_bytes(value[3:4], "little", signed=False)
+        bhash = int.from_bytes(value[4:8], "little", signed=False)
+        print(str(major) + "." + str(minor) + "." + str(patch) + "." + str(build) + "."+ str(bhash))
+        print("Done")
+
+    def do_fwversions(self, line):
+        """
+        fwversions
+
+            Get the TRX FW version and the TI Wi-SUN stack version.
+
+            > versions
+            TRX FW VERSION: 0.11.0.22.3316673118
+            TIWISUNFAN/1.0.1; RELEASE; Feb 7 2021 18:22:04
+            Done
+
+        """
+        value = self.prop_get_value(SPINEL.PROP_TRXFWVER)
+        major = int.from_bytes(value[:1], "little", signed=False)
+        minor = int.from_bytes(value[1:2], "little", signed=False)
+        patch = int.from_bytes(value[2:3], "little", signed=False)
+        build = int.from_bytes(value[3:4], "little", signed=False)
+        bhash = int.from_bytes(value[4:8], "little", signed=False)
+        print("TRX FW VERSION: " + str(major) + "." + str(minor) + "." + str(patch) + "." + str(build) + "."+ str(bhash))
+        self.handle_property(line, SPINEL.PROP_NCP_VERSION, 'U')
 
 
     # for PHY properties
@@ -1054,6 +1272,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             Done
         """
         self.handle_property(line, SPINEL.PROP_MAC_15_4_PANID, 'H')
+        self.my_panid = self.prop_get_value(SPINEL.PROP_MAC_15_4_PANID)
 
     # for NET properties
     def complete_ifconfig(self, text, _line, _begidx, _endidx):
@@ -1578,18 +1797,21 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                 print("Cannot Perform Ping as device does not have a valid Source IP Address")
                 return
 
-            timenow = int(round(time.time() * 1000)) & 0xFFFFFFFF
-            data = bytearray(int(_size))
+            for i in range(0,int( _count)):
+                timenow = int(round(time.time() * 1000)) & 0xFFFFFFFF
+                data = bytearray(int(_size))
 
-            ping_req = self.ipv6_factory.build_icmp_echo_request(
-                srcIPAddress,
-                addr,
-                data,
-                identifier=(timenow >> 16),
-                sequence_number=(timenow & 0xffff))
+                ping_req = self.ipv6_factory.build_icmp_echo_request(
+                    srcIPAddress,
+                    addr,
+                    data,
+                    identifier=(timenow >> 16),
+                    sequence_number=(timenow & 0xffff))
 
-            self.wpan_api.ip_send(ping_req)
-            # Let handler print result
+                self.wpan_api.ip_send(ping_req)
+                # Let handler print result
+                time. sleep(int(_interval))
+
         except:
             print("Fail")
             print(traceback.format_exc())
@@ -1726,6 +1948,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             elif params[0] == "remove":
                 self.prop_remove_value(SPINEL.PROP_MULTICAST_LIST, ipaddr.packed, str(len(ipaddr.packed)) + 's')
 
+
     def do_coap(self, line):
         """
         coap <ipv6 address> <coap request code (get|put|post)> <coap request type (con|non)> <uri_path>
@@ -1760,7 +1983,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                 Get request with test option:
                     > coap fdde:ad00:beef:0:558:f56b:d688:799 get con led --test_option 3 hostname
         """
-        global coap_led_req_token 
+        global coap_led_req_token
 
         router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
         if router_state < 5:
@@ -1851,21 +2074,324 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             print("Fail")
             print(traceback.format_exc())
 
+    def do_getpanidlist(self, line):
+        """
+        getpanidlist <ipv6 address> <list_type (allow|deny)>
+            Retrieve the contents of the PAN ID allowlist or denylist.
+            You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+            Parameters:
+                ipv6 address:   Destination IPv6 address of the device. Multicast addresses are not supported.
+                list_type:      Type of PAN ID list to retrieve. Specify "allow" or "deny" for allowlist and denylist,
+                                respectively.
+            Examples:
+                > getpanidlist 2020:abcd::212:4b00:14f7:d2ee allow
+                Sending PAN ID allow/deny list get message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: ...
+                PAN ID list contents:
+                0xabcd
+                0x2345
+
+                > getpanidlist 2020:abcd::212:4b00:14f7:d2ee deny
+                Sending PAN ID allow/deny list get message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: ...
+                PAN ID list is empty!
+        """
+        global panid_list_get_token
+
+        # Verify and assign paramters
+        params = line.split(" ")
+        if len(params) != 2:
+            print("Invalid number of parameters")
+            return
+        dest_addr = params[0]
+        list_type = params[1]
+        list_type_uri= None
+
+        if list_type == 'allow':
+            list_type_uri = PANID_LIST_ALLOW_URI
+        elif list_type == 'deny':
+            list_type_uri = PANID_LIST_DENY_URI
+        else:
+            print('Invalid PAN ID list type. Specify allow or deny')
+            return
+
+        # Check router state
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process coap commands")
+            return
+        try:
+            # Get source address
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            src_addr = None
+            for i in range(0,len(ipv6AddrTableList)):
+                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                    src_addr = str(ipv6AddrTableList[i]["ipv6Addr"])
+                    break
+            if src_addr is None:
+                print("Cannot perform CoAP request as device does not have a valid source IP address")
+                return
+
+            # Generate a random token and save it for ACK usage later
+            panid_list_get_token = random.getrandbits(DEFAULT_TKL*8)
+
+            # Construct coap message
+            coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                ipv6.COAP_METHOD_CODE_GET, PANID_LIST_BASE_URI + '/' + list_type_uri, tkl=DEFAULT_TKL,
+                token=panid_list_get_token)
+
+            # Send coap message
+            if coap_req is not None:
+                self.wpan_api.ip_send(coap_req)
+                print("Sending PAN ID allow/deny list get message")
+                # Let handler print result
+            else:
+                print("CoAP message not generated successfully")
+        except:
+            print("Failed to send request")
+            print(traceback.format_exc())
+
+    def do_setpanidlistjson(self, line):
+        """
+        setpanidlistjson <json_file_path>
+            Set the JSON file used to set the panid allow/deny list for new coap nodes joining the network.
+            You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+            If this file is not set or does not exist, you can still use setpanidlist and panrediscover manually.
+            See panid_list_example.json for an example JSON file. Note that entries IDs are EUI addresses, which
+            can be retrieved from devices via Uniflash. EUI addresses MUST be capitalized in the file. See the
+            README for more details on setting this file.
+
+            If this file is set and does exist, send the contents of the entry corresponding to the joining
+            coap node based on this file. The joining node will automatically add this content to its current
+            panid filter list.  If a rediscover is necessary (if the joined coap node is not allowed to join
+            the currently connected PAN), then a pan rediscover is triggered automatically.
+
+            Parameters:
+                json_file_path: Path of the json file used to set panid allow/deny list. See panid_list_example.json
+                                for an example file.
+            Example:
+                > setpanidlistjson panid_list_example.json
+                PAN ID list JSON file successfully set
+
+                *** On coap node join (no rediscover case) ***
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 1 (Non-confirmable), token: 444124896, code: 0.02 (Post), msg_id: 11247
+                CoAP node with address 2020:abcd::212:4b00:14f7:d2ee joined!
+                Setting coap node PAN ID list according to JSON file
+                CoAP node EUI found in JSON, sending PAN ID list
+
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 2 (Acknowledgement), token: 17288129104006421587, code: 2.03 (Valid), msg_id: 0
+                JSON file PAN IDs added to PAN ID list.
+                PAN rediscovery not required, staying in network
+
+                *** On coap node join (rediscover case) ***
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 1 (Non-confirmable), token: 1044362384, code: 0.02 (Post), msg_id: 25514
+                CoAP node with address 2020:abcd::212:4b00:14f7:d2ee joined!
+                Setting coap node PAN ID list according to JSON file
+                CoAP node EUI found in JSON, sending PAN ID list
+
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 2 (Acknowledgement), token: 12059002529985627774, code: 2.04 (Changed), msg_id: 0
+                JSON file PAN IDs added to PAN ID list.
+                PAN rediscovery started
+        """
+        # Verify and assign paramters
+        params = line.split(" ")
+        if len(params) != 1:
+            print("Invalid number of parameters")
+            return
+        file_path = params[0]
+        if not os.path.isfile(file_path):
+            print("Error: Could not read  PAN ID list JSON file")
+            return
+        self.panid_list_json_path = file_path
+        print("PAN ID list JSON file successfuly set")
+
+    def do_setpanidlist(self, line):
+        """
+        setpanidlist <ipv6 address> <list_type (allow|deny)> <action (add|remove)> <panid>
+            Add or remove a PAN ID in the allowlist or denylist.
+            You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+            Parameters:
+                ipv6 address:   Destination IPv6 address of the device. Multicast addresses are not supported.
+                list_type:      Type of PAN ID list to set. Specify "allow" or "deny" for allowlist and denylist,
+                                respectively.
+                action:         Specify either "add" or "remove" to add or remove an entry for the specified list.
+                panid:          PAN ID to add or remove from the specified list.
+            Examples:
+                > setpanidlist 2020:abcd::212:4b00:14f7:d2ee allow add 0xabcd
+                Sending PAN ID allow/deny list set message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+                PAN ID list successfully set
+
+                > setpanidlist 2020:abcd::212:4b00:14f7:d2ee allow remove 0xabcd
+                Sending PAN ID allow/deny list set message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+                PAN ID list successfully set
+
+                > setpanidlist 2020:abcd::212:4b00:14f7:d2ee deny add 0x1234
+                Sending PAN ID allow/deny list set message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+                PAN ID list successfully set
+
+                > setpanidlist 2020:abcd::212:4b00:14f7:d2ee deny remove 0x1234
+                Sending PAN ID allow/deny list set message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+                PAN ID list successfully set
+        """
+        global panid_list_set_token
+
+        # Verify and assign paramters
+        params = line.split(" ")
+        if len(params) != 4:
+            print("Invalid number of parameters")
+            return
+        dest_addr = params[0]
+        list_type = params[1]
+        action    = params[2]
+        panid     = params[3]
+        list_type_uri= None
+        action_bit = None
+
+        if list_type == 'allow':
+            list_type_uri = PANID_LIST_ALLOW_URI
+        elif list_type == 'deny':
+            list_type_uri = PANID_LIST_DENY_URI
+        else:
+            print('Invalid PAN ID list type. Specify allow or deny')
+            return
+
+        if action == 'add':
+            action_bit = PANID_LIST_ACTION_ADD
+        elif action == 'remove':
+            action_bit = PANID_LIST_ACTION_DEL
+        else:
+            print('Invalid action. Specify add or remove')
+            return
+        try:
+            panid = int(panid, 16)
+        except(ValueError):
+            print("PAN ID value is not hex format")
+            return
+
+        # Check router state
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process coap commands")
+            return
+        try:
+            # Get source address
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            src_addr = None
+            for i in range(0,len(ipv6AddrTableList)):
+                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                    src_addr = str(ipv6AddrTableList[i]["ipv6Addr"])
+                    break
+            if src_addr is None:
+                print("Cannot perform CoAP request as device does not have a valid source IP address")
+                return
+
+            # Construct payload
+            panid_lower = panid & 0xFF
+            panid_upper = panid >> 8
+            payload = [action_bit, panid_lower, panid_upper]
+
+            # Generate a random token and save it for ACK usage later
+            panid_list_set_token = random.getrandbits(DEFAULT_TKL*8)
+
+            # Construct coap message
+            coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                ipv6.COAP_METHOD_CODE_PUT, PANID_LIST_BASE_URI + '/' + list_type_uri, payload=payload, tkl=DEFAULT_TKL,
+                token=panid_list_set_token)
+
+            # Send coap message
+            if coap_req is not None:
+                self.wpan_api.ip_send(coap_req)
+                print("Sending PAN ID allow/deny list set message")
+                # Let handler print result
+            else:
+                print("CoAP message not generated successfully")
+        except:
+            print("Failed to send request")
+            print(traceback.format_exc())
+
+    def do_panrediscover(self, line):
+        """
+        panrediscover <ipv6 address>
+            Trigger a PAN rediscover on the specified device by reseting the network stack.
+            You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+            Parameters:
+                ipv6 address:   Destination IPv6 address of the device. Multicast addresses are not supported.
+
+            Example:
+                > panrediscover 2020:abcd::212:4b00:14f7:d2ee
+                Sending PAN rediscover request message
+                CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+                PAN rediscover successfully triggered
+        """
+        global pan_rediscover_req_token
+
+        # Verify and assign paramters
+        params = line.split(" ")
+        if len(params) != 1:
+            print("Invalid number of parameters")
+            return
+        dest_addr = params[0]
+
+        # Check router state
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process coap commands")
+            return
+        try:
+            # Get source address
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            src_addr = None
+            for i in range(0,len(ipv6AddrTableList)):
+                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                    src_addr = str(ipv6AddrTableList[i]["ipv6Addr"])
+                    break
+            if src_addr is None:
+                print("Cannot perform CoAP request as device does not have a valid source IP address")
+                return
+
+            # Generate a random token and save it for ACK usage later
+            pan_rediscover_req_token = random.getrandbits(DEFAULT_TKL*8)
+
+            # Construct coap message
+            coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
+                ipv6.COAP_METHOD_CODE_PUT, PANID_LIST_BASE_URI + '/' + PAN_REDISCOVER_URI, tkl=DEFAULT_TKL,
+                token=pan_rediscover_req_token)
+
+            # Send coap message
+            if coap_req is not None:
+                self.wpan_api.ip_send(coap_req)
+                print("Sending PAN rediscover request message")
+                # Let handler print result
+            else:
+                print("CoAP message not generated successfully")
+        except:
+            print("Failed to send request")
+            print(traceback.format_exc())
+
     def do_getoadfwver(self, line):
         """
         getoadfwver <ipv6 address>
             Get the firmware version of the image on a CoAP OAD-enabled device.
 
             Parameters:
-                ipv6 address:   Destination IPv6 address of the device to get the address from. Multicast addresses are not
-                                supported.
+                ipv6 address:   Destination IPv6 address of the device. Multicast addresses are not supported.
 
             Example:
                 > getoadfwver fdde:ad00:beef:0:558:f56b:d688:799
                 Img ID: 123, Platform: 23 (CC1312R7)
                 OAD firmware version: 1.0.0.0
         """
-        global oad_fwv_req_token 
+        global oad_fwv_req_token
 
         # Verify and assign paramters
         params = line.split(" ")
@@ -1919,8 +2445,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             Parameters:
                 ipv6 address:    Destination IPv6 address of target OAD-enabled device to upgrade the firmware of.
                                  Multicast addresses are not supported.
-                platform type:   Platform of the target device to be upgraded. Supported platforms are CC1312R7 and
-                                 CC1352P7.
+                platform type:   Platform of the target device to be upgraded. Supported platforms are CC1312R7, CC1352P7,
+                                 CC1314R10, and CC1354P10.
                 block size:      Block size (bytes) to use for block transfer. Recommended to use between 128-1024 byte blocks.
                                  Very small block size incurs unnecessary frame overhead, while very large block size results
                                  in fragmentation overhead.
@@ -1934,7 +2460,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         """
         global oad_file
         global oad_img_len
-        global oad_ntf_req_token 
+        global oad_ntf_req_token
         global oad_start_time
         global oad_log_filename
         global oad_block_size
@@ -1951,7 +2477,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         if platform_type in PLATFORM_CHIP_TYPE_LOOKUP:
             platform_type = PLATFORM_CHIP_TYPE_LOOKUP[platform_type]
         else:
-            print("Error: Unsupported platform. Supported platforms are CC1312R7 and CC1352P7.")
+            print("Error: Unsupported platform. Supported platforms are CC1312R7, CC1352P7, CC1314R10, and CC1354P10.")
             return False
 
         self.cleanup_oad()
@@ -1974,7 +2500,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         oad_log_filename = "oad_log_{}_{}.txt".format(dest_addr_str, timestamp)
         oad_logger = None
         oad_log_file = None
-        try: 
+        try:
             oad_logger = logging.getLogger('oad')
             oad_logger.setLevel(logging.INFO)
             oad_logger.progagate = False

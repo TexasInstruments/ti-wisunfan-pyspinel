@@ -64,6 +64,7 @@ class SPINEL(object):
     PROP_NCP_VERSION = 2  # < version string [U]
     PROP_INTERFACE_TYPE = 3  # < [i]
     PROP_HWADDR = 8  # < PermEUI64 [E]
+    PROP_TRXFWVER = 13  # < PermEUI64 [E]
 
     # PHY Properties
     PROP_PHY__BEGIN = 0x20
@@ -120,6 +121,7 @@ class SPINEL(object):
     PROP_MAC_BC_CHANNEL_FUNCTION = PROP_WISUN_EXT__BEGIN + 90 # < [C]
     PROP_MAC_MAC_FILTER_LIST = PROP_WISUN_EXT__BEGIN + 91 # < [A(E)]
     PROP_MAC_FILTER_MODE = PROP_WISUN_EXT__BEGIN + 92   # < [C]
+    PROP_TEST_COMMAND = PROP_WISUN_EXT__BEGIN + 93   # < [b]
     #TI WI-SUN NET
     PROP_REVOKE_GTK_HWADDR = PROP_WISUN_EXT__BEGIN + 171   # < [C]
     PROP_WISUN_EXT__END = 0x1600

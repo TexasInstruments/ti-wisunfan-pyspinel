@@ -74,7 +74,7 @@ COAP_METHOD_CODE_DELETE           = (0,4)
 
 COAP_RSP_CODE_EMPTY               = (0,0)
 
-COAP_RSP_CODE_CREATED             = (1,1)
+COAP_RSP_CODE_CREATED             = (2,1)
 COAP_RSP_CODE_DELETED             = (2,2)
 COAP_RSP_CODE_VALID               = (2,3)
 COAP_RSP_CODE_CHANGED             = (2,4)

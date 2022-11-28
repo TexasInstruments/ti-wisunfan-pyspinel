@@ -1,0 +1,18 @@
+{
+    "00124B0014F7D2EE": {
+        "allow": ["0xabcd"],
+        "deny": []
+    },
+    "EUI_addr2": {
+        "allow": ["0xbbbb", "0xcccc"],
+        "deny": []
+    },
+    "EUI_addr3": {
+        "allow": [],
+        "deny": ["0xabcd"]
+    },
+    "EUI_addr4": {
+        "allow": [],
+        "deny": []
+    }
+}

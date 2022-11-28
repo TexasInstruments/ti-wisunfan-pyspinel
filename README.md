@@ -107,17 +107,19 @@ Display all commands supported by TI Wi-SUN spinel-cli.
 spinel-cli > help
 
 Available commands (type help <name> for more information):
-============================================================
-asyncchlist      connecteddevices  macfiltermode    q                v
-bcchfunction     dodagroute        multicastlist    quit             wisunstack
-bcdwellinterval  exit              ncpversion       region
-bcinterval       help              networkname      reset
-broadcastchlist  history           numconnected     role
-ccathreshold     hwaddress         nverase          routerstate
-ch0centerfreq    ifconfig          panid            txpower
-chspacing        interfacetype     phymodeid        ucchfunction
-clear            ipv6addresstable  ping             ucdwellinterval
-coap             macfilterlist     protocolversion  unicastchlist
+============================================================        
+asyncchlist       exit              ncpversion       revokeDevice   
+bcchfunction      getoadfwver       networkname      role
+bcdwellinterval   getoadstatus      numconnected     routerstate    
+bcinterval        help              nverase          rssi
+broadcastchlist   history           panid            startoad       
+ccathreshold      hwaddress         phymodeid        txpower        
+ch0centerfreq     ifconfig          ping             ucchfunction   
+chspacing         interfacetype     protocolversion  ucdwellinterval
+clear             ipv6addresstable  q                unicastchlist  
+coap              macfilterlist     quit             v
+connecteddevices  macfiltermode     region           wisunstack
+dodagroute        multicastlist     reset
 ```
 
 #### help \<command\>
@@ -185,6 +187,14 @@ Below are some commonly used Wi-SUN FAN stack specific commands supported by the
 - [multicastlist](#multicastlist)
 - [coap](#coap)
 - [dodagroute](#dodagroute)
+- [rssi](#rssi)
+- [getoadfwver](#getoadfwver)
+- [startoad](#startoad)
+- [getoadstatus](#getoadstatus)
+- [setpanidlistjson](#setpanidlistjson)
+- [setpanidlist](#setpanidlist)
+- [getpanidlist](#getpanidlist)
+- [panrediscover](#panrediscover)
 
 #### networkname
 
@@ -324,9 +334,23 @@ fd00:7283:7e00:0:212:4b00:10:50d0
 Done
 ```
 
+#### rssi
+
+Displays the number of neighbor nodes for the current node and rssi of the incoming packets from the neighbor nodes, rssi values reported by the neighbor nodes when the current node sends them packets.
+
+```bash
+spinel-cli > rssi
+Number of Neighbor Nodes = 2
+Neighbor Node RSSI metrics are (EUI, RSSI_IN, RSSI_OUT):
+00124b001ca19463, -22.0dBm, -23.0dBm
+00124b001ca13486, -32.0dBm, -33.0dBm
+Done
+```
+
+
 #### getoadfwver
 
-Get the firmware version of the image on a CoAP OAD-enabled device. Note that CoAP OAD projects are currently not available. CoAP OAD projects will be available in the Q4 2022 SimpleLink SDK release.
+Get the firmware version of the image on a CoAP OAD-enabled device.
 
 ```bash
 > getoadfwver fdde:ad00:beef:0:558:f56b:d688:799
@@ -336,7 +360,7 @@ OAD firmware version: 1.0.0.0
 
 #### startoad
 
-Start a CoAP OAD with a target CoAP OAD-enabled device. Provide the platform type, block size, and image binary path. Note that the target device's OAD method (offchip/onchip) must match the OAD method of the sent oad image binary file. Note that CoAP OAD projects are currently not available. CoAP OAD projects will be available in the Q4 2022 SimpleLink SDK release.
+Start a CoAP OAD with a target CoAP OAD-enabled device. Provide the platform type, block size, and image binary path. Note that the target device's OAD method (offchip/onchip) must match the OAD method of the sent oad image binary file.
 
 
 ```bash
@@ -348,9 +372,145 @@ OAD upgrade accepted. Starting block transfer
 
 #### getoadstatus
 
-Check the status of an ongoing OAD. Note that CoAP OAD projects are currently not available. CoAP OAD projects will be available in the Q4 2022 SimpleLink SDK release.
+Check the status of an ongoing OAD.
 
 ```bash
 > getoadstatus
 Block 0154/2752 sent. Block size: 128. Duration: 0:00:25.804326
+```
+
+#### setpanidlistjson
+
+Set the JSON file used to set the panid allow/deny list for new coap nodes joining the network.
+If this file is not set or does not exist, you can still use setpanidlist and panrediscover manually.
+You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+See `panid_list_example.json` for an example JSON file. Some important notes about this JSON file:
+* Each entry key is an EUI addresses, which  can be retrieved from devices via Uniflash.
+* EUI address keys MUST be capitalized in the file or they will fail to match.
+* spinel-cli.py must be running for the JSON contents to update to the coap node.
+* setpanidlistjson must be called each time spine-cli.py is initated on the BR device.
+* Intermediate router device are not valid for JSON PAN ID filter lists, as coap nodes only communicate
+  with BR devices of the network.
+
+Some details about allow/deny filter list:
+* If the allowlist is set, the denylist is ignored. Only when the allowlist is empty is the denylist considered. See the
+  rediscovery rules below for the explicit rediscovery decision.
+* The current PAN ID filter list on coap devices only has 3 entries for allowlist and 5 entries for denylist.
+  Additional entires will be ignored.
+* PAN ID filter lists  are not stored in non-volatile memory. They are not preserved on reset.
+* The PAN ID filter lists are automatically cleared if the device is unable to join a network after a
+  certain timeout period. This timeout value is 30 minutes by default, but can be configured with the `PANID_LIST_TIMEOUT_SEC`.
+  parameter in spinel-cli.py
+
+Some further details on the JSON update process
+* When a coap node joins the network, it will send a join indication message to the BR with its EUI. The BR will
+  scan the JSON file for this EUI.
+    * If a matching EUI is found, the BR will send the contents to the joined coap node, which will update its internal PAN ID
+      filters with this new info. This does not replace current entries already in the list but instead appends to them.
+        * The exception to the append rule is if a new PAN ID entry being added to the allowlist is currently in the
+          denylist, or vice versa. To allow the new entry to take precedence, the old entry on the opposite list is
+          removed first before adding the new entry.
+    * If a match is not found, the BR will assume it knows nothing about the node and does not want it to join. It will
+      update the joined coap node with a new denylist entry containing its own PAN ID, triggering a rediscovery.
+    * If setpanidlistjson is not called after initializing spinel-cli or the file passed is deleted, the JSON is not
+      available. It is assumed direct control via the other panidlist APIs is desired, so the update message to the
+      joining coap node will not modify its current PAN ID filters.
+* After the update process, the coap node will read its current PAN ID filter lists and decide whether a PAN rediscovery
+  (network restart) is needed.
+    * If the allowlist is not empty:
+        * If the current PAN ID is in the allowlist, then no rediscovery is needed
+        * If the current PAN ID is not present, then rediscovery is needed
+    * If the allowlist is empty and the denylist is not empty:
+        * If the current PAN ID is in the denylist, rediscovery is needed
+        * If the current PAN ID is not in the denylist, rediscovery is not needed
+    * If both the allowlist and denylist are empty, no rediscovery is needed
+
+```bash
+> setpanidlistjson panid_list_example.json
+PAN ID list JSON file successfully set
+
+*** On coap node join (no rediscover case) ***
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 1 (Non-confirmable), token: 444124896, code: 0.02 (Post), msg_id: 11247
+CoAP node with address 2020:abcd::212:4b00:14f7:d2ee joined!
+Setting coap node PAN ID list according to JSON file
+CoAP node EUI found in JSON, sending PAN ID list
+
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 2 (Acknowledgement), token: 17288129104006421587, code: 2.03 (Valid), msg_id: 0
+JSON file PAN IDs added to PAN ID list.
+PAN rediscovery not required, staying in network
+
+*** On coap node join (rediscover case) ***
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 1 (Non-confirmable), token: 1044362384, code: 0.02 (Post), msg_id: 25514
+CoAP node with address 2020:abcd::212:4b00:14f7:d2ee joined!
+Setting coap node PAN ID list according to JSON file
+CoAP node EUI found in JSON, sending PAN ID list
+
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: type: 2 (Acknowledgement), token: 12059002529985627774, code: 2.04 (Changed), msg_id: 0
+JSON file PAN IDs added to PAN ID list.
+PAN rediscovery started
+```
+
+#### setpanidlist
+
+Add or remove a PAN ID in the allowlist or denylist for coap nodes.
+You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+See setpanidlistjson documentation above for additional details on the allowlist and denylist.
+
+```bash
+> setpanidlist 2020:abcd::212:4b00:14f7:d2ee allow add 0xabcd
+Sending PAN ID allow/deny list set message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+PAN ID list successfully set
+
+> setpanidlist 2020:abcd::212:4b00:14f7:d2ee allow remove 0xabcd
+Sending PAN ID allow/deny list set message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+PAN ID list successfully set
+
+> setpanidlist 2020:abcd::212:4b00:14f7:d2ee deny add 0x1234
+Sending PAN ID allow/deny list set message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+PAN ID list successfully set
+
+> setpanidlist 2020:abcd::212:4b00:14f7:d2ee deny remove 0x1234
+Sending PAN ID allow/deny list set message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+PAN ID list successfully set
+```
+
+#### getpanidlist
+
+Retrieve the contents of the PAN ID allowlist or denylist for coap nodes.
+You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+See setpanidlistjson documentation above for additional details on the allowlist and denylist.
+
+```bash
+> getpanidlist 2020:abcd::212:4b00:14f7:d2ee allow
+Sending PAN ID allow/deny list get message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: ...
+PAN ID list contents:
+0xabcd
+0x2345
+
+> getpanidlist 2020:abcd::212:4b00:14f7:d2ee deny
+Sending PAN ID allow/deny list get message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee: ...
+PAN ID list is empty!
+```
+
+#### panrediscover
+
+Trigger a PAN rediscover on the specified device by reseting the network stack for coap nodes.
+You MUST build coap node projects with the `COAP_PANID_LIST` predefine to use this functionality.
+
+See setpanidlistjson documentation above for additional details on the allowlist and denylist.
+
+```bash
+> panrediscover 2020:abcd::212:4b00:14f7:d2ee
+Sending PAN rediscover request message
+CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
+PAN rediscover successfully triggered
 ```

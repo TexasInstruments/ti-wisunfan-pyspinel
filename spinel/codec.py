@@ -436,6 +436,9 @@ class SpinelPropertyHandler(SpinelCodec):
     def HWADDR(self, _, payload):
         return self.parse_E(payload)
 
+    def TRXFWVER(self, _, payload):
+        return self.parse_D(payload)
+
     def PHY_CCA_THRESHOLD(self, _, payload):
         return self.parse_c(payload)
 
@@ -519,6 +522,9 @@ class SpinelPropertyHandler(SpinelCodec):
 
     def PROP_MAC_FILTER_MODE(self, _, payload):
         return self.parse_C(payload)
+
+    def PROP_TEST_COMMAND(self, _, payload):
+        return self.parse_b(payload)
 
     def PROP_REVOKE_GTK_HWADDR(self, _, payload):
         return self.parse_E(payload)
@@ -667,6 +673,8 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.INTERFACE_TYPE,
     SPINEL.PROP_HWADDR:
         WPAN_PROP_HANDLER.HWADDR,
+    SPINEL.PROP_TRXFWVER:
+        WPAN_PROP_HANDLER.TRXFWVER,
     SPINEL.PROP_PHY_CCA_THRESHOLD:
         WPAN_PROP_HANDLER.PHY_CCA_THRESHOLD,
     SPINEL.PROP_PHY_TX_POWER:
@@ -723,6 +731,8 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PROP_MAC_MAC_FILTER_LIST,
     SPINEL.PROP_MAC_FILTER_MODE:
         WPAN_PROP_HANDLER.PROP_MAC_FILTER_MODE,
+    SPINEL.PROP_TEST_COMMAND:
+        WPAN_PROP_HANDLER.PROP_TEST_COMMAND,
     SPINEL.PROP_DODAG_ROUTE_DEST:
         WPAN_PROP_HANDLER.DODAG_ROUTE_DEST,
     SPINEL.PROP_DODAG_ROUTE:
