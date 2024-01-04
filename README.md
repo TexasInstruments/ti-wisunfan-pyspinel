@@ -107,19 +107,21 @@ Display all commands supported by TI Wi-SUN spinel-cli.
 spinel-cli > help
 
 Available commands (type help <name> for more information):
-============================================================        
-asyncchlist       exit              ncpversion       revokeDevice   
-bcchfunction      getoadfwver       networkname      role
-bcdwellinterval   getoadstatus      numconnected     routerstate    
-bcinterval        help              nverase          rssi
-broadcastchlist   history           panid            startoad       
-ccathreshold      hwaddress         phymodeid        txpower        
-ch0centerfreq     ifconfig          ping             ucchfunction   
-chspacing         interfacetype     protocolversion  ucdwellinterval
-clear             ipv6addresstable  q                unicastchlist  
-coap              macfilterlist     quit             v
-connecteddevices  macfiltermode     region           wisunstack
-dodagroute        multicastlist     reset
+============================================================
+asyncchlist       fwversions        networkname      routerstate
+bcchfunction      getoadfwver       numconnected     rssi
+bcdwellinterval   getoadstatus      nverase          setpanidlist
+bcinterval        getpanidlist      panid            setpanidlistjson
+broadcastchlist   help              panrediscover    startoad
+ccathreshold      history           phymodeid        trxfwversion
+ch0centerfreq     hwaddress         ping             txpower
+chspacing         ifconfig          protocolversion  ucchfunction
+clear             interfacetype     q                ucdwellinterval
+coap              ipv6addresstable  quit             udp
+connecteddevices  macfilterlist     region           unicastchlist
+dodagroute        macfiltermode     reset            v
+eapolallowlist    multicastlist     revokeDevice     wisundirect
+exit              ncpversion        role             wisunstack
 ```
 
 #### help \<command\>
@@ -179,11 +181,13 @@ Below are some commonly used Wi-SUN FAN stack specific commands supported by the
 - [networkname](#networkname)
 - [ifconfig](#ifconfig)
 - [wisunstack](#wisunstack)
+- [wisundirect](#wisundirect)
 - [routerstate](#routerstate)
 - [numconnected](#numconnected)
 - [connecteddevices](#connecteddevices)
 - [ipv6addresstable](#ipv6addresstable)
 - [ping](#ping)
+- [udp](#udp)
 - [multicastlist](#multicastlist)
 - [coap](#coap)
 - [dodagroute](#dodagroute)
@@ -219,7 +223,7 @@ Done
 
 #### wisunstack
 
-Display the Operational status of the Wi-SUN FAN network. Can also be used to enable/disable Wi-SUN stack operation and attach to/detach from a Wi-SUN network. "wisunstack start" command should be preceeded by "ifconfig up" command. For router node, even though the stack is brought up, it takes some time for the node to join the network and become operational. Refer to routerstate command for more info. 
+Display the Operational status of the Wi-SUN FAN network. Can also be used to enable/disable Wi-SUN stack operation and attach to/detach from a Wi-SUN network. "wisunstack start" command should be preceeded by "ifconfig up" command. For router node, even though the stack is brought up, it takes some time for the node to join the network and become operational. Refer to routerstate command for more info.
 wisunstack stop functionality is currently not implemented and will be done in future. Till then use 'reset' command to stop all operations and issue 'ifconfig up' and 'wisunstack start' to start the Wi-SUN network again.
 
 ```bash
@@ -228,6 +232,23 @@ Done
 spinel-cli > wisunstack
 start
 Done
+```
+
+#### wisundirect
+Note that after enabling wisundirect on Border Router, PAN Configuration will no longer be transmitted.
+This is to ensure consistent bootstrap state for joining nodes.
+
+Turn Wi-SUN direct mode on. Off by default. Only intended to be used by Border Router devices. This enables a specific message header, allowing link-local unicast messages from the Border Router to be TX'ed and RX'ed properly by devices that are not fully joined. Both devices must have security exchange disabled (use preshared keys). wisundirect command should be called before interface/stack up.
+
+After calling wisundirect on, use ping or coap commands with a MAC address in the `<address>` field to send packets to a specific HW MAC address. Both devices must have exchanged at least one PAN advertisement solicit/PAN advertisement for this ping/coap command to go through.
+
+Note that after enabling wisundirect on Border Router, PAN Configuration will no longer be transmitted. This is to ensure consistent bootstrap state for joining nodes.
+
+```bash
+> wisundirect
+Wi-SUN direct mode off
+> wisundirect on
+Turn Wi-SUN direct mode on
 ```
 
 #### routerstate
@@ -277,7 +298,7 @@ Done
 
 #### ping
 
-Send an ICMPv6 Echo Request. Prints the received ping response. Key in Enter to get the command prompt back, if needed. 
+Send an ICMPv6 Echo Request. Prints the received ping response. Key in Enter to get the command prompt back, if needed.
 
 ```bash
 spinel-cli > ping fd00:7283:7e00:0:212:4b00:1ca1:9463
@@ -298,6 +319,14 @@ spinel-cli > multicastlist add ff04::1
 
 spinel-cli > multicastlist
 ff04::1
+```
+#### udp
+
+Send an UDP message to a target address.
+
+```bash
+spinel-cli > udp fd00:7283:7e00:0:212:4b00:1ca1:9463 testdata
+Sending UDP packet with payload: testdata
 ```
 
 #### coap
@@ -514,3 +543,5 @@ Sending PAN rediscover request message
 CoAP packet received from 2020:abcd::212:4b00:14f7:d2ee ...
 PAN rediscover successfully triggered
 ```
+
+

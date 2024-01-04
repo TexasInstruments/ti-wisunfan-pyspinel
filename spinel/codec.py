@@ -451,6 +451,9 @@ class SpinelPropertyHandler(SpinelCodec):
     def PHY_NBR_METRICS(self, _, payload):
         return self.parse_D(payload)
 
+    def PHY_METRICS(self, _, payload):
+        return self.parse_D(payload)
+
     def MAC_15_4_PANID(self, _, payload):
         return self.parse_S(payload)
 
@@ -465,6 +468,9 @@ class SpinelPropertyHandler(SpinelCodec):
 
     def NET_NETWORK_NAME(self, _, payload):
         return self.parse_U(payload)
+
+    def NET_UDP_START(self, _, payload):
+        return self.parse_c(payload)
 
     def PROP_PHY_REGION(self, _, payload):
         return self.parse_C(payload)
@@ -526,6 +532,12 @@ class SpinelPropertyHandler(SpinelCodec):
     def PROP_TEST_COMMAND(self, _, payload):
         return self.parse_b(payload)
 
+    def PROP_VPIE_COMMAND(self, _, payload):
+        return self.parse_b(payload)
+
+    def PROP_MACMPL_COMMAND(self, _, payload):
+        return self.parse_b(payload)
+    
     def PROP_REVOKE_GTK_HWADDR(self, _, payload):
         return self.parse_E(payload)
 
@@ -683,6 +695,8 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PHY_NUM_NBRS,
     SPINEL.PROP_PHY_NBR_METRICS:
         WPAN_PROP_HANDLER.PHY_NBR_METRICS,
+    SPINEL.PROP_PHY_METRICS:
+        WPAN_PROP_HANDLER.PHY_METRICS,
     SPINEL.PROP_MAC_15_4_PANID:
         WPAN_PROP_HANDLER.MAC_15_4_PANID,
     SPINEL.PROP_NET_IF_UP:
@@ -693,6 +707,8 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.NET_ROLE,
     SPINEL.PROP_NET_NETWORK_NAME:
         WPAN_PROP_HANDLER.NET_NETWORK_NAME,
+    SPINEL.PROP_NET_UDP_START:
+        WPAN_PROP_HANDLER.NET_UDP_START,
     SPINEL.PROP_PHY_REGION:
         WPAN_PROP_HANDLER.PROP_PHY_REGION,
     SPINEL.PROP_PHY_MODE_ID:
@@ -733,6 +749,10 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PROP_MAC_FILTER_MODE,
     SPINEL.PROP_TEST_COMMAND:
         WPAN_PROP_HANDLER.PROP_TEST_COMMAND,
+    SPINEL.PROP_VPIE_COMMAND:
+        WPAN_PROP_HANDLER.PROP_VPIE_COMMAND,
+    SPINEL.PROP_MACMPL_COMMAND:
+        WPAN_PROP_HANDLER.PROP_MACMPL_COMMAND,
     SPINEL.PROP_DODAG_ROUTE_DEST:
         WPAN_PROP_HANDLER.DODAG_ROUTE_DEST,
     SPINEL.PROP_DODAG_ROUTE:

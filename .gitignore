@@ -96,3 +96,6 @@ ENV/
 
 # mkdocs documentation
 /site
+
+# spinel-cli state tracking files
+spinel_conn_dev_filter.json

@@ -79,6 +79,70 @@ PLATFORM_CHIP_TYPE_LOOKUP = {
     PLATFORM_TYPE_CC1354P10: 31,
 }
 
+# UDP constants
+UDP_PORT     = 49153
+
+# Test Metrics Data Index
+TEST_METRICS_FILE_NAME = "test_metrics.csv"
+TEST_METRICS_BR_FILE_NAME = "test_metrics_br.csv"
+TEST_METRICS_VER1_PAYLOAD_LEN  = 44
+TEST_METRICS_VER2_PAYLOAD_LEN  = 108
+TEST_METRICS_REVISION_LEN = 2
+TEST_METRICS_LENGTH_SIZE  = 2
+TEST_METRICS_NUM_OF_JOIN_TIMES    = 5
+TEST_METRICS_JOIN_TIME_LEN        = 4 * TEST_METRICS_NUM_OF_JOIN_TIMES
+TEST_METRICS_NUMOF_BR_DISCONNECT_LEN = 4
+TEST_METRICS_DEV_TABLE_SIZE_LEN   = 2
+TEST_METRICS_FH_NT_NUM_NODES_LEN  = 2
+TEST_METRICS_HEAP_SIZE_LEN        = 4
+TEST_METRICS_CURRENT_HEAP_USE_LEN = 4
+TEST_METRICS_HIGH_HEAP_USE_LEN    = 4
+# MAC Performance Data
+TEST_METRICS_MAC_NUM_ASYNC_REQ    = 4
+TEST_METRICS_MAC_ASYNC_REQ_LEN    = 4 * TEST_METRICS_MAC_NUM_ASYNC_REQ
+TEST_METRICS_MAC_TX_BROADCAST_LEN = 4
+TEST_METRICS_MAC_TX_UNICAST_LEN   = 4
+# TX data confirm performance
+TEST_METRICS_MAC_TX_CONF_OK_LEN   = 4
+TEST_METRICS_MAC_TX_CONF_NOACK_LEN = 4
+TEST_METRICS_MAC_TX_CONF_NOENTRY_LEN = 4
+TEST_METRICS_MAC_TX_CONF_CHBUSY_LEN = 4
+TEST_METRICS_MAC_TX_CONF_OTHER_LEN = 4
+# RX indication
+TEST_METRICS_MAC_RX_NUM_ASYNC_REQ = 4
+TEST_METRICS_MAC_RX_ASYNC_IND_LEN = 4 * TEST_METRICS_MAC_RX_NUM_ASYNC_REQ
+TEST_METRICS_MAC_RX_IND_LEN       = 4
+# Num of UDP packets
+TEST_METRICS_NUM_UDP_PKTS_LEN     = 4
+# Current Rank for the Node
+TEST_METRICS_CURR_RANK_LEN        = 2
+
+TEST_METRICS_REVISION_INDEX = 0
+TEST_METRICS_LENGTH_INDEX              = TEST_METRICS_REVISION_INDEX + TEST_METRICS_REVISION_LEN
+TEST_METRICS_JOIN_TIME_INDEX           = TEST_METRICS_LENGTH_INDEX + TEST_METRICS_LENGTH_SIZE
+TEST_METRICS_NUMOF_BR_DISCONNECT_INDEX = TEST_METRICS_JOIN_TIME_INDEX + TEST_METRICS_JOIN_TIME_LEN
+TEST_METRICS_DEV_TABLE_SIZE_INDEX      = TEST_METRICS_NUMOF_BR_DISCONNECT_INDEX + TEST_METRICS_NUMOF_BR_DISCONNECT_LEN
+TEST_METRICS_FH_NT_NUM_NODES_INDEX     = TEST_METRICS_DEV_TABLE_SIZE_INDEX + TEST_METRICS_DEV_TABLE_SIZE_LEN
+TEST_METRICS_HEAP_SIZE_INDEX           = TEST_METRICS_FH_NT_NUM_NODES_INDEX + TEST_METRICS_FH_NT_NUM_NODES_LEN
+TEST_METRICS_CURRENT_HEAP_USE_INDEX    = TEST_METRICS_HEAP_SIZE_INDEX + TEST_METRICS_HEAP_SIZE_LEN
+TEST_METRICS_HIGH_HEAP_USE_INDEX       = TEST_METRICS_CURRENT_HEAP_USE_INDEX + TEST_METRICS_CURRENT_HEAP_USE_LEN
+# MAC Performance data
+TEST_METRICS_MAC_ASYNC_REQ_INDEX       = TEST_METRICS_HIGH_HEAP_USE_INDEX + TEST_METRICS_HIGH_HEAP_USE_LEN
+TEST_METRICS_MAC_TX_BROADCAST_INDEX    = TEST_METRICS_MAC_ASYNC_REQ_INDEX + TEST_METRICS_MAC_ASYNC_REQ_LEN
+TEST_METRICS_MAC_TX_UNICAST_INDEX      = TEST_METRICS_MAC_TX_BROADCAST_INDEX + TEST_METRICS_MAC_TX_BROADCAST_LEN
+TEST_METRICS_MAC_TX_CONF_OK_INDEX      = TEST_METRICS_MAC_TX_UNICAST_INDEX + TEST_METRICS_MAC_TX_UNICAST_LEN
+TEST_METRICS_MAC_TX_CONF_NOACK_INDEX   = TEST_METRICS_MAC_TX_CONF_OK_INDEX + TEST_METRICS_MAC_TX_CONF_OK_LEN
+TEST_METRICS_MAC_TX_CONF_NOENTRY_INDEX = TEST_METRICS_MAC_TX_CONF_NOACK_INDEX + TEST_METRICS_MAC_TX_CONF_NOACK_LEN
+TEST_METRICS_MAC_TX_CONF_CHBUSY_INDEX  = TEST_METRICS_MAC_TX_CONF_NOENTRY_INDEX + TEST_METRICS_MAC_TX_CONF_NOENTRY_LEN
+TEST_METRICS_MAC_TX_CONF_OTHER_INDEX   = TEST_METRICS_MAC_TX_CONF_CHBUSY_INDEX + TEST_METRICS_MAC_TX_CONF_CHBUSY_LEN
+TEST_METRICS_MAC_RX_ASYNC_IND_INDEX    = TEST_METRICS_MAC_TX_CONF_OTHER_INDEX + TEST_METRICS_MAC_TX_CONF_OTHER_LEN
+TEST_METRICS_MAC_RX_IND_INDEX          = TEST_METRICS_MAC_RX_ASYNC_IND_INDEX + TEST_METRICS_MAC_RX_ASYNC_IND_LEN
+TEST_METRICS_NUM_UDP_PKTS_INDEX        = TEST_METRICS_MAC_RX_IND_INDEX + TEST_METRICS_MAC_RX_IND_LEN
+TEST_METRICS_CURR_RANK_INDEX           = TEST_METRICS_NUM_UDP_PKTS_INDEX + TEST_METRICS_NUM_UDP_PKTS_LEN
+
+NODE_TYPE_BR   = 1
+NODE_TYPE_COAP = 2
+
 # COAP constants
 COAP_PORT    = 5683
 DEFAULT_TKL  = 8
@@ -114,6 +178,9 @@ PANID_LIST_TIMEOUT_SEC = 1800
 # COAP LED globals
 coap_led_req_token = None
 
+# COAP TESTMETRICS globals
+coap_testmetrics_req_token = None
+
 # OAD globals
 oad_file = None
 oad_img_len = 0
@@ -127,11 +194,10 @@ oad_ntf_req_token = None
 # PANID allow/denylist globals
 panid_list_get_token = None
 panid_list_set_token = None
-panid_list_bulk_set_token = None
+panid_list_bulk_set_token_list = []
 pan_rediscover_req_token = None
 
 class IPv6Factory(object):
-    coap_port_factory = {COAP_PORT: ipv6.CoAPFactory()}
     ipv6_factory = ipv6.IPv6PacketFactory(
         ehf={
             0:
@@ -146,7 +212,11 @@ class IPv6Factory(object):
         ulpf={
             17:
                 ipv6.UDPDatagramFactory(
-                    udp_header_factory=ipv6.UDPHeaderFactory(), dst_port_factories=coap_port_factory),
+                    udp_header_factory=ipv6.UDPHeaderFactory(), dst_port_factories={
+                        COAP_PORT: ipv6.CoAPFactory(),
+                        UDP_PORT: ipv6.UDPBytesPayloadFactory()
+                    }
+                ),
             58:
                 ipv6.ICMPv6Factory(
                     body_factories={
@@ -172,6 +242,8 @@ class IPv6Factory(object):
     def _get_next_mpl_seq_number(self):
         curr_mpl_seq = self.mpl_seq_number
         self.mpl_seq_number += 1
+        if (self.mpl_seq_number >= 256):
+            self.mpl_seq_number = 0
         return curr_mpl_seq
 
     def _get_next_coap_msg_id(self):
@@ -238,6 +310,37 @@ class IPv6Factory(object):
         )
 
         return ping_req.to_bytes()
+
+    def build_udp_request(self, src, dst, payload=None, hop_limit=64, msg_id=None,
+                           tkl= 0, token=None, src_port=UDP_PORT, dst_port=UDP_PORT):
+        _extension_headers = None
+
+        if ipaddress.IPv6Address(dst).is_multicast:
+            # Tunnel the IPv6 header + frame (containing the multicast address)
+            _extension_headers = [ipv6.HopByHop(options=[
+                                 ipv6.HopByHopOption(ipv6.HopByHopOptionHeader(_type=0x6d),
+                                 ipv6.MPLOption(S=3, M=0, V=0, sequence=self._get_next_mpl_seq_number(),
+                                 seed_id=ipaddress.ip_address(src).packed))])]
+            _extension_headers.append(ipv6.IPv6Header(source_address=src,
+                                                      destination_address=dst,
+                                                      hop_limit=hop_limit))
+            dst = "ff03::fc" # Use the realm-all-forwarders address for the outer ipv6 header
+
+
+        udp_payload = ipv6.UDPBytesPayload(payload)
+        udp_dgram = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit
+            ),
+            upper_layer_protocol=ipv6.UDPDatagram(
+                header=ipv6.UDPHeader(src_port=src_port, dst_port=dst_port),
+                payload=udp_payload
+            ),
+            extension_headers=_extension_headers
+        )
+        return udp_dgram.to_bytes()
+
 
     def build_coap_request(self, src, dst, coap_type, coap_method_code, uri_path, option_list=None,
                            led_target=None, led_state=None, payload=None, hop_limit=64, msg_id=None,
@@ -367,7 +470,10 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             print("Module readline unavailable")
         else:
             import rlcompleter
-            readline.parse_and_bind('bind ^I rl_complete')
+            if readline.__doc__ and 'libedit' in readline.__doc__:
+                readline.parse_and_bind("bind ^I rl_complete")
+            else:
+                readline.parse_and_bind("tab: complete")
 
         # if hasattr(stream, 'pipe'):
         #     self.wpan_api.queue_wait_for_prop(SPINEL.PROP_LAST_STATUS,
@@ -427,6 +533,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'bcchfunction',
         'macfilterlist',
         'macfiltermode',
+        'eapolallowlist',
 
         # properties in TI Wi-SUN specific NET category
         'routerstate',
@@ -436,6 +543,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         # properties in IPV6 category
         'ipv6addresstable',
         'multicastlist',
+        'udp',
         'coap',
         'numconnected',
         'connecteddevices',
@@ -451,6 +559,9 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'setpanidlist',
         'panrediscover',
 
+        # Enable direct mode
+        "wisundirect",
+
         #reset cmd
         'reset',
         'nverase',
@@ -458,7 +569,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
     @classmethod
     def update_routing_dict(self, value):
-        print("Routing table update")
+        t = time.localtime()
+        print("Routing table update at " + time.asctime(t))
         try:
             changed_info, dst_ip_addr, routing_entry = wisun_util.parse_routingtable_property(value)
             print(changed_info)
@@ -477,13 +589,130 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         except RuntimeError:
             pass
 
+    def get_dataFromPayload(self, payload, index, num_bytes):
+        data = payload[index] + (payload[index+1] << 8)
+        if (num_bytes == 4):
+            data += (payload[index+2] << 16) + (payload[index+3] << 24)
+        return data
+
+    def parsePayLoadData(self, payload, nodeType):
+        test_metrics_data = []
+        index_offset = 0
+        if nodeType == NODE_TYPE_BR:
+            index_offset = 2
+
+        # Version number (2 bytes)
+        # print("Version:" + str(p.payload[TEST_METRICS_REVISION_INDEX])+str(p.payload[TEST_METRICS_REVISION_INDEX+1]))
+        metrics_ver = self.get_dataFromPayload(payload, TEST_METRICS_REVISION_INDEX + index_offset, TEST_METRICS_REVISION_LEN)
+        test_metrics_data.append(metrics_ver)
+
+        # Data size
+        # print("Data Size:" + str(p.payload[TEST_METRICS_LENGTH_INDEX+1]) + str(p.payload[TEST_METRICS_LENGTH_INDEX]))
+        metrics_size = self.get_dataFromPayload(payload, TEST_METRICS_LENGTH_INDEX + index_offset, TEST_METRICS_LENGTH_SIZE)
+
+        if (int(metrics_size) >= TEST_METRICS_VER1_PAYLOAD_LEN):
+            # Array of joining time
+            for index_mult in range (TEST_METRICS_NUM_OF_JOIN_TIMES):
+            # Joining time (in ticks - 1 tick = 10uSec)
+                metrics_join_time = self.get_dataFromPayload(payload, (TEST_METRICS_JOIN_TIME_INDEX + index_offset + (4*index_mult)), 4)
+                test_metrics_data.append(metrics_join_time/100000)
+
+            # Number of BR disconnect detected (4 bytes)
+            metrics_numof_br_disconnect = self.get_dataFromPayload(payload, TEST_METRICS_NUMOF_BR_DISCONNECT_INDEX + index_offset, TEST_METRICS_NUMOF_BR_DISCONNECT_LEN)
+            test_metrics_data.append(metrics_numof_br_disconnect)
+
+            # Device Table Size (2 bytes)
+            metrics_table_size = self.get_dataFromPayload(payload, TEST_METRICS_DEV_TABLE_SIZE_INDEX + index_offset, TEST_METRICS_DEV_TABLE_SIZE_LEN)
+            test_metrics_data.append(metrics_table_size)
+
+            # FH NT Num nodes (2 bytes)
+            metrics_num_nodes = self.get_dataFromPayload(payload, TEST_METRICS_FH_NT_NUM_NODES_INDEX + index_offset, TEST_METRICS_FH_NT_NUM_NODES_LEN)
+            test_metrics_data.append(metrics_num_nodes)
+
+            # Heap Size (4 bytes)
+            metrics_heap_size = self.get_dataFromPayload(payload, TEST_METRICS_HEAP_SIZE_INDEX + index_offset, TEST_METRICS_HEAP_SIZE_LEN)
+            test_metrics_data.append(metrics_heap_size)
+
+            # Current Heap Usage (4 bytes)
+            metrics_curr_heap_usage = self.get_dataFromPayload(payload, TEST_METRICS_CURRENT_HEAP_USE_INDEX + index_offset, TEST_METRICS_CURRENT_HEAP_USE_LEN)
+            test_metrics_data.append(metrics_curr_heap_usage)
+
+            # Highest Heap Usage (4 bytes)
+            metrics_high_heap_usage = self.get_dataFromPayload(payload, TEST_METRICS_HIGH_HEAP_USE_INDEX + index_offset, TEST_METRICS_HIGH_HEAP_USE_LEN)
+            test_metrics_data.append(metrics_high_heap_usage)
+
+        if (int(metrics_ver) > 1):
+            # Array of Number of Async Channel Request
+            for index_mult in range (TEST_METRICS_MAC_NUM_ASYNC_REQ):
+                metrics_mac_async_req = self.get_dataFromPayload(payload, (TEST_METRICS_MAC_ASYNC_REQ_INDEX + index_offset +(4*index_mult)), 4)
+                test_metrics_data.append(metrics_mac_async_req)
+
+            # Number of TX broadcast (4 bytes)
+            metrics_tx_broadcast = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_BROADCAST_INDEX + index_offset, TEST_METRICS_MAC_TX_BROADCAST_LEN)
+            test_metrics_data.append(metrics_tx_broadcast)
+
+            # Number of TX Unicast (4 bytes)
+            metrics_tx_unicast = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_UNICAST_INDEX + index_offset, TEST_METRICS_MAC_TX_UNICAST_LEN)
+            test_metrics_data.append(metrics_tx_unicast)
+
+            # Number of TX Conf - OK (4 bytes)
+            metrics_tx_conf_ok = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_CONF_OK_INDEX + index_offset, TEST_METRICS_MAC_TX_CONF_OK_LEN)
+            test_metrics_data.append(metrics_tx_conf_ok)
+
+            # Number of TX Conf - NO ACK (4 bytes)
+            metrics_tx_conf_noack = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_CONF_NOACK_INDEX + index_offset, TEST_METRICS_MAC_TX_CONF_NOACK_LEN)
+            test_metrics_data.append(metrics_tx_conf_noack)
+
+            # Number of TX Conf - NO Entry (4 bytes)
+            metrics_tx_conf_noentry = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_CONF_NOENTRY_INDEX + index_offset, TEST_METRICS_MAC_TX_CONF_NOENTRY_LEN)
+            test_metrics_data.append(metrics_tx_conf_noentry)
+
+            # Number of TX Conf - Channel busy (4 bytes)
+            metrics_tx_conf_ch_busy = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_CONF_CHBUSY_INDEX + index_offset, TEST_METRICS_MAC_TX_CONF_CHBUSY_LEN)
+            test_metrics_data.append(metrics_tx_conf_ch_busy)
+
+            # Number of TX Conf - Other (4 bytes)
+            metrics_tx_conf_other = self.get_dataFromPayload(payload, TEST_METRICS_MAC_TX_CONF_OTHER_INDEX + index_offset, TEST_METRICS_MAC_TX_CONF_OTHER_LEN)
+            test_metrics_data.append(metrics_tx_conf_other)
+
+            # Array of Number of Async Channel Indication
+            for index_mult in range (TEST_METRICS_MAC_RX_NUM_ASYNC_REQ):
+                metrics_mac_async_ch_ind = self.get_dataFromPayload(payload, (TEST_METRICS_MAC_RX_ASYNC_IND_INDEX + index_offset + (4*index_mult)), 4)
+                test_metrics_data.append(metrics_mac_async_ch_ind)
+
+            # Number of RX Indication (4 bytes)
+            metrics_rx_ind = self.get_dataFromPayload(payload, TEST_METRICS_MAC_RX_IND_INDEX + index_offset, TEST_METRICS_MAC_RX_IND_LEN)
+            test_metrics_data.append(metrics_rx_ind)
+
+        if (int(metrics_ver) > 2):
+            # Number of UDP Packets received (4 bytes)
+            if nodeType == NODE_TYPE_COAP:
+                metrics_udp_pkts = self.get_dataFromPayload(payload, TEST_METRICS_NUM_UDP_PKTS_INDEX + index_offset, TEST_METRICS_NUM_UDP_PKTS_LEN)
+                test_metrics_data.append(metrics_udp_pkts)
+
+        if (int(metrics_ver) > 3):
+            # Node Rank / hop count (4 bytes)
+            if nodeType == NODE_TYPE_COAP:
+                metrics_cur_rank = self.get_dataFromPayload(payload, TEST_METRICS_CURR_RANK_INDEX + index_offset, TEST_METRICS_CURR_RANK_LEN)
+                test_metrics_data.append(metrics_cur_rank)
+
+        return test_metrics_data
+
+    def saveTestMetrics (self, test_metrics_data, file_name):
+        with open(file_name, "a") as test_data:
+            for metric in range (len(test_metrics_data)):
+                test_data.write(f"{test_metrics_data[metric]}")
+                if metric < (len(test_metrics_data) - 1):
+                    test_data.write(f",")
+            test_data.write("\n")
+
     def wpan_callback(self, prop, value, tid):
         global oad_file
         global oad_start_time
         global oad_log_filename
         global oad_log_str
         global oad_block_size
-        global panid_list_bulk_set_token
+        global panid_list_bulk_set_token_list
 
         consumed = False
         if prop == SPINEL.PROP_STREAM_NET:
@@ -547,11 +776,15 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                     coap_packet_type = "LED_GET_RESP"
                                 elif h.code == ipv6.COAP_RSP_CODE_CHANGED:
                                     coap_packet_type = "LED_SET_RESP"
+                            elif coap_testmetrics_req_token == h.token:
+                                if h.code == ipv6.COAP_RSP_CODE_CONTENT:
+                                    coap_packet_type = "TESTMETRICS_GET_RESP"
                             elif panid_list_get_token == h.token:
                                 coap_packet_type = "PANID_LIST_GET_RESP"
                             elif panid_list_set_token == h.token:
                                 coap_packet_type = "PANID_LIST_SET_RESP"
-                            elif panid_list_bulk_set_token == h.token:
+                            elif h.token in panid_list_bulk_set_token_list:
+                                panid_list_bulk_set_token_list.remove(h.token)
                                 coap_packet_type = "PANID_LIST_BULK_RESP"
                             elif pan_rediscover_req_token == h.token:
                                 coap_packet_type = "PAN_REDISCOVER_RESP"
@@ -678,12 +911,14 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                             return
                         # LED GET response
                         elif coap_packet_type == "LED_GET_RESP":
+                            print ("Payload size:" + str(len(p.payload)))
                             if len(p.payload) == 2:
                                 rled_state = "Off" if int(p.payload[0]) == 0 else "On"
                                 gled_state = "Off" if int(p.payload[1]) == 0 else "On"
                                 print("RLED state: {}, GLED state: {}".format(rled_state, gled_state))
                             else:
                                 print("Error: invalid LED state")
+                                print("Payload: {}".format(list(p.payload)))
                         # LED PUT/POST response
                         elif coap_packet_type == "LED_SET_RESP":
                             print("LED state successfully set")
@@ -698,10 +933,10 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                 if self.panid_list_json_path is None or not os.path.isfile(self.panid_list_json_path):
                                     print("No PAN ID list JSON file found, no modifications to device PAN ID list")
                                     payload = [0] * 6
-                                    panid_list_bulk_set_token = random.getrandbits(DEFAULT_TKL*8)
+                                    panid_list_bulk_set_token_list.append(random.getrandbits(DEFAULT_TKL*8))
                                     coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
                                         ipv6.COAP_METHOD_CODE_PUT, PANID_LIST_BASE_URI + '/' + PANID_LIST_BULK_URI,
-                                        payload=payload, tkl=DEFAULT_TKL, token=panid_list_bulk_set_token)
+                                        payload=payload, tkl=DEFAULT_TKL, token=panid_list_bulk_set_token_list[-1])
                                     self.wpan_api.ip_send(coap_req)
                                     return
                                 # JSON PANID list used
@@ -741,10 +976,10 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                     # Send payload containing allow/deny list contents. Allow the coap node
                                     # to decide whether to perform pan rediscovery.
                                     # Generate a random token and save it for ACK usage later
-                                    panid_list_bulk_set_token = random.getrandbits(DEFAULT_TKL*8)
+                                    panid_list_bulk_set_token_list.append(random.getrandbits(DEFAULT_TKL*8))
                                     coap_req = self.ipv6_factory.build_coap_request(src_addr, dest_addr, ipv6.COAP_TYPE_CON,
                                         ipv6.COAP_METHOD_CODE_PUT, PANID_LIST_BASE_URI + '/' + PANID_LIST_BULK_URI,
-                                        payload=payload, tkl=DEFAULT_TKL, token=panid_list_bulk_set_token)
+                                        payload=payload, tkl=DEFAULT_TKL, token=panid_list_bulk_set_token_list[-1])
                                     self.wpan_api.ip_send(coap_req)
                             except:
                                 print("Failed to send JSON PAN IDs to coap node")
@@ -753,10 +988,30 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                         elif coap_packet_type == "PANID_LIST_BULK_RESP":
                             if h.code == ipv6.COAP_RSP_CODE_CHANGED or h.code == ipv6.COAP_RSP_CODE_VALID:
                                 print("JSON file PAN IDs added to PAN ID list.")
-                                if h.code == ipv6.COAP_RSP_CODE_CHANGED:
-                                    print("PAN rediscovery started")
-                                else: # h.code == ipv6.COAP_RSP_CODE_VALID:
-                                    print("PAN rediscovery not required, staying in network")
+                                try:
+                                    filter_json = None
+                                    src_addr_str = str(pkt.ipv6_header.source_address)
+                                    with open("./spinel_conn_dev_filter.json", "a+") as fp:
+                                        fp.seek(0)
+                                        try:
+                                            filter_json = json.load(fp)
+                                        except json.decoder.JSONDecodeError:
+                                            filter_json = []
+                                        if h.code == ipv6.COAP_RSP_CODE_CHANGED:
+                                            print("PAN rediscovery started")
+                                            if (src_addr_str not in filter_json):
+                                                filter_json.append(src_addr_str)
+                                            print("Address {} added to connecteddevices filter".format(src_addr_str))
+                                        else: # h.code == ipv6.COAP_RSP_CODE_VALID:
+                                            print("PAN rediscovery not required, staying in network")
+                                            filter_json[:] = [addr for addr in filter_json if addr != src_addr_str]
+                                            print("Address {} removed from connecteddevices filter".format(src_addr_str))
+                                    # Open in write mode to erase the previous contents and rewrite
+                                    with open("./spinel_conn_dev_filter.json", "w") as fp:
+                                        json.dump(filter_json, fp)
+                                except:
+                                    print("Failed to save address to connected devices filter")
+                                    print(traceback.format_exc())
                             else:
                                 print("Coap node failed to set JSON PAN IDs")
                         elif coap_packet_type == "PANID_LIST_GET_RESP":
@@ -776,13 +1031,32 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                 print("Error setting PAN ID list")
                         elif(coap_packet_type == "PAN_REDISCOVER_RESP"):
                             print("PAN rediscover successfully triggered\n")
+                        # METRICS GET response
+                        elif coap_packet_type == "TESTMETRICS_GET_RESP":
+                            test_metrics_data = []
+                            print("Coap metrics - Len:" + str(len(p.payload)))
+                            # print("Raw CoAP payload: {}".format(list(p.payload)))
+                            if len(p.payload) > 1:
+                                test_metrics_data.append(pkt.ipv6_header.source_address)
+                                # Parse Payload data and add to the array
+                                test_metrics_data.extend(self.parsePayLoadData(p.payload, NODE_TYPE_COAP))
+
+                                # Write all test metrics data to file
+                                self.saveTestMetrics(test_metrics_data, TEST_METRICS_FILE_NAME)
+                            else:
+                                print("Error: invalid Payload size for Test Metrics")
+                                print("Payload: {}".format(list(p.payload)))
                         else:
                             if len(p.payload) == 0:
                                 print("No CoAP payload")
                             else:
                                 print("Raw CoAP payload: {}".format(list(p.payload)))
                     else:
+                        h = udp_pkt.header
+                        p = udp_pkt.payload
+                        payload = p.data.decode('utf-8')
                         print("UDP packet received")
+                        print("UDP payload: {}".format(payload))
                 else:
                     print("\nReceived IPv6 packet with unsupported upper layer protocol (not UDP or ICMP)")
             except RuntimeError:
@@ -1072,6 +1346,20 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
             > testcommand edfe off
             Turn EDFE mode off
+
+            VPIE enable example:
+            > testcommand vpie on
+            Turn VPIE on
+
+            > testcommand vpie off
+            Turn VPIE off
+
+            MACMPL test enable command
+            >testcommand macmpl on
+            Turn MACMPL test. The BR will generate the MPL traffic every one second
+
+            >testcommand macmpl off
+            Trun MACMPL test off
         """
         params = line.split(" ")
         if params[0] == "edfe":
@@ -1092,6 +1380,105 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                     self.prop_set(SPINEL.PROP_TEST_COMMAND, '0')
             else:
                 print("Invalid number of parameters")
+        elif params[0] == "vpie":
+            if len(params) == 1:
+                value = self.prop_get_value(SPINEL.PROP_VPIE_COMMAND)
+                if value != None:
+                    map_arg_value = {
+                        0: "off",
+                        1: "on",
+                    }
+                    print("VPIE " + map_arg_value[value])
+            elif len(params) == 2:
+                if params[1] == "on":
+                    print("Turn VPIE on")
+                    self.prop_set(SPINEL.PROP_VPIE_COMMAND, '1')
+                elif params[1] == "off":
+                    print("Turn VPIE off")
+                    self.prop_set(SPINEL.PROP_VPIE_COMMAND, '0')
+                else :
+                    print("The command parameter is wrong. Please use on/off")
+            else:
+                print("Invalid number of parameters")
+        elif params[0] == "macmpl":
+            if len(params) == 1:
+                value = self.prop_get_value(SPINEL.PROP_MACMPL_COMMAND)
+                if value != None:
+                    map_arg_value = {
+                        0: "off",
+                        1: "on",
+                    }
+                    print("MACMPL " + map_arg_value[value])
+            elif len(params) == 2:
+                if params[1] == "on":
+                    print("Turn MACMPL on")
+                    self.prop_set(SPINEL.PROP_MACMPL_COMMAND, '1')
+                elif params[1] == "off":
+                    print("Turn MACMPL off")
+                    self.prop_set(SPINEL.PROP_MACMPL_COMMAND, '0')
+                else :
+                    print("The command parameter is wrong. Please use on/off")
+            else:
+                print("Invalid number of parameters")
+        elif params[0] == "jtime":
+            if len(params) == 2:
+                # Set PanID and start wisun Stack
+                print ("Panid: " + params[1])
+                self.handle_property(params[1], SPINEL.PROP_MAC_15_4_PANID, 'H', output=False)
+                # self.my_panid = self.prop_get_value(SPINEL.PROP_MAC_15_4_PANID)
+                self.prop_set(SPINEL.PROP_NET_IF_UP, '1', output=False)
+                result = self.prop_get_or_set_value(SPINEL.PROP_NET_STACK_UP, "1")
+                if result != None:
+                    t = time.localtime()
+                    print("Done at " + time.asctime(t))
+                else:
+                    print("Error")
+            else:
+                print("Invalid number of parameters")
+
+    def do_wisundirect(self, line):
+        """
+        wisundirect <on/off>
+            Turn Wi-SUN direct mode on. Off by default. Only intended to be used by Border Router devices.
+            This enables a specific message header, allowing link-local unicast messages from the Border Router
+            to be TX'ed and RX'ed properly by devices that are not fully joined. Both devices must have security
+            exchange disabled (use preshared keys). wisundirect command should be called before interface/stack up.
+
+            After calling wisundirect on, use ping or coap commands with a MAC address in the <address> field to
+            send packets to a specific HW MAC address. Both devices must have exchanged at least one
+            PAN advertisement solicit/PAN advertisement for this ping/coap command to go through.
+
+            Note that after enabling wisundirect on Border Router, PAN Configuration will no longer be transmitted.
+            This is to ensure consistent bootstrap state for joining nodes.
+            Examples:
+                > wisundirect
+                Wi-SUN direct mode off
+
+                > wisundirect on
+                Turn Wi-SUN direct mode on
+        """
+        params = line.split(" ")
+        if params[0] == "":
+            value = self.prop_get_value(SPINEL.PROP_VPIE_COMMAND)
+            if value != None:
+                map_arg_value = {
+                    0: "off",
+                    1: "on",
+                }
+                print("Wi-SUN direct mode " + map_arg_value[value])
+            else:
+                print("Could not get Wi-SUN direct mode")
+        elif len(params) == 1:
+            if params[0] == "on":
+                print("Turn Wi-SUN direct mode on")
+                self.prop_set(SPINEL.PROP_VPIE_COMMAND, '1')
+            elif params[0] == "off":
+                print("Turn Wi-SUN direct mode off")
+                self.prop_set(SPINEL.PROP_VPIE_COMMAND, '0')
+            else :
+                print("The command parameter is wrong. Please use on/off")
+        else:
+            print("Invalid number of parameters")
 
     # for Core properties
     def do_protocolversion(self, line):
@@ -1387,7 +1774,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         if result != None:
             if not line:
                 print(map_arg_value[result])
-            print("Done")
+            t = time.localtime()
+            print("Done at " + time.asctime(t))
         else:
             print("Error")
 
@@ -1726,7 +2114,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         """
         self.handle_property(line, SPINEL.PROP_MAC_BC_CHANNEL_FUNCTION, mixed_format = 'B')
 
-
     def do_macfiltermode(self, line):
         """
         macfiltermode
@@ -1762,7 +2149,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
     def do_ping(self, line):
         """
-        ping <ipaddr> [size] [count] [interval]
+        ping <address> [size] [count] [interval] [hop limit]
 
             Send an ICMPv6 Echo Request.
 
@@ -1774,6 +2161,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         _size = "56"
         _count = "1"
         _interval = "1"
+        _hop_limit = 64
         if len(params) > 0:
             addr = params[0]
         if len(params) > 1:
@@ -1782,19 +2170,45 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             _count = params[2]
         if len(params) > 3:
             _interval = params[3]
+        if len(params) > 4:
+            _hop_limit = int(params[4])
 
         try:
+            is_mac_addr = False
+            try:
+                addr_convert = ipaddress.IPv6Address(addr)
+            except ipaddress.AddressValueError:
+                if (len(addr) != 16):
+                    print ("Invalid IP/MAC address")
+                    return
+                is_mac_addr = True
+                # covert MAC addr to LL IPv6 Address
+                # Add colons to MAC addr
+                addr = [''.join(i) for i in zip(addr[0::4], addr[1::4], addr[2::4], addr[3::4])]
+                addr = ':'.join(addr)
+                # Replace 2nd char with 2
+                addr = addr[:1] + '2' + addr[2:]
+                # Prepend fe08
+                addr = "fe80::" + addr
+                print("Converted MAC address input to {}".format(addr))
+
+
             # Generate local ping packet and send directly via spinel.
             value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
             ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
             srcIPAddress = "None"
             for i in range(0,len(ipv6AddrTableList)):
-                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
-                    srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
-                    break
+                if is_mac_addr == True:
+                    if('fe80' in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
+                else: # ip address
+                    if('fe80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
 
             if srcIPAddress == "None":
-                print("Cannot Perform Ping as device does not have a valid Source IP Address")
+                print("Cannot perform ping request as device does not have a valid source IP address")
                 return
 
             for i in range(0,int( _count)):
@@ -1805,16 +2219,114 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                     srcIPAddress,
                     addr,
                     data,
+                    hop_limit=_hop_limit,
                     identifier=(timenow >> 16),
                     sequence_number=(timenow & 0xffff))
 
                 self.wpan_api.ip_send(ping_req)
                 # Let handler print result
-                time. sleep(int(_interval))
-
+                time.sleep(int(_interval))
         except:
             print("Fail")
             print(traceback.format_exc())
+
+    def do_eapolallowlist(self, line):
+        """
+        eapolallowlist <filename>
+
+        Add the EUIs listed in <filename> to the eapol allowlist. Put one EUI address per line in the
+        specified file.
+        """
+        params = line.split(" ")
+        if params[0] == "":
+            print("Specify EAPOL allowlist source filename")
+            return
+
+        filename = params[0]
+
+        oldmode = None
+        try:
+            with open(filename, "r") as fp:
+                # Save old macfiltermode to apply later
+                oldmode = self.prop_get_value(SPINEL.PROP_MAC_FILTER_MODE)
+
+                self.prop_set_value(SPINEL.PROP_MAC_FILTER_MODE, 3, 'b')
+                lines = fp.read().splitlines()
+                for line in lines:
+                    if (len(line) != 16):
+                        print("Incorrect EUI length")
+                        return
+                    arr = util.hex_to_bytes(line)
+                    self.prop_insert_value(SPINEL.PROP_MAC_MAC_FILTER_LIST, arr, str(len(arr)) + 's')
+                    print("Added {} to EAPOL EUI allowlist".format(line))
+                self.prop_set_value(SPINEL.PROP_MAC_FILTER_MODE, oldmode, 'b')
+        except:
+            if (oldmode):
+                self.prop_set_value(SPINEL.PROP_MAC_FILTER_MODE, oldmode, 'b')
+            print("Error opening or parsing EAPOL allowlist file")
+            print(traceback.format_exc())
+            return
+
+    def do_testmetrics(self, line):
+        """
+        testmetrics <filename> - retrieve test metrics from Coap
+                    Add the IP Addresses in the specified file.
+        testmetrics            - retrieve metrics from BR
+        """
+        global coap_testmetrics_req_token
+
+        params = line.split(" ")
+        data = []
+        if params[0] == "":
+            test_metrics_data = []
+            data = self.prop_get_or_set_value(SPINEL.PROP_PHY_METRICS, line="", mixed_format='B')
+            # print("BR metrics: {}".format(list(data)))
+            if len(data) > 1:
+                hwaddr = self.handle_property(line, SPINEL.PROP_HWADDR, 'E', output=False)
+                hwaddr = binascii.hexlify(hwaddr).decode('utf8')
+                test_metrics_data.append(hwaddr)
+                test_metrics_data.extend(self.parsePayLoadData(data, NODE_TYPE_BR))
+                self.saveTestMetrics (test_metrics_data, TEST_METRICS_BR_FILE_NAME)
+            else:
+                print("BR metrics not available. {}".format(list(data)))
+            return
+
+        filename = params[0]
+
+        try:
+            with open(filename, "r") as fp:
+                coap_confirm = ipv6.COAP_TYPE_CON
+                uri_path = "metrics"
+                option_list = []
+                lines = fp.read().splitlines()
+
+                value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+                ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+                srcIPAddress = "None"
+                for i in range(0,len(ipv6AddrTableList)):
+                    if('fe80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
+
+                # Generate a random token and save it for ACK usage later
+                coap_testmetrics_req_token = random.getrandbits(DEFAULT_TKL*8)
+
+                for line in lines:
+                    addr = line
+
+                    coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
+                        ipv6.COAP_METHOD_CODE_GET, uri_path, option_list, None, None,
+                        tkl=DEFAULT_TKL, token=coap_testmetrics_req_token)
+
+                    if coap_req is not None:
+                        self.wpan_api.ip_send(coap_req)
+                        # this delay helps when there are multiple calls
+                        time.sleep(0.8)
+
+        except:
+            print("Error opening or parsing IP Address list file")
+            print(traceback.format_exc())
+            return
 
     def do_macfilterlist(self, line):
         """
@@ -1948,10 +2460,100 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             elif params[0] == "remove":
                 self.prop_remove_value(SPINEL.PROP_MULTICAST_LIST, ipaddr.packed, str(len(ipaddr.packed)) + 's')
 
+    def do_udp(self, line):
+        """
+        udp <address> [payload] [count] [interval] [hop limit]
+            Send a UDP message to a target address.
+
+            > udp fd00:7283:7e00:0:212:4b00:1ca1:9463 testdata
+            Sending UDP packet with payload: testdata
+
+            Embedded UDP test mode:
+            udp start <#of Packets> - to start sending #of UDP packets from Border Router.
+                Set #of Packets to 0 to send packets indefintely
+        """
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process udp commands")
+            return
+
+        params = line.split(" ")
+        if len(params) < 1:
+            print("Invalid number of parameters")
+            return
+
+        if len(params) < 3:
+            if (params[0] == "start"):
+                pkts = params[1]
+                print ("Send UDP pkts for: " + str(pkts))
+                value = self.prop_set_value(SPINEL.PROP_NET_UDP_START, int(pkts), 'L')
+                return
+
+        try:
+            addr = params[0]
+            payload_data = ""
+            count = 1
+            interval = 1
+            hop_limit = 64
+            if len(params) >= 2:
+                payload_data = params[1]
+            if len(params) >= 3:
+                count = int(params[2])
+            if len(params) >= 4:
+                interval = int(params[3])
+            if len(params) >= 5:
+                hop_limit = int(params[4])
+
+            # Decide if address is a MAC or IP address
+            is_mac_addr = False
+            try:
+                addr_convert = ipaddress.IPv6Address(addr)
+            except ipaddress.AddressValueError:
+                if (len(addr) != 16):
+                    print ("Invalid IP/MAC address")
+                    return
+                is_mac_addr = True
+                # covert MAC addr to LL IPv6 Address
+                # Add colons to MAC addr
+                addr = [''.join(i) for i in zip(addr[0::4], addr[1::4], addr[2::4], addr[3::4])]
+                addr = ':'.join(addr)
+                # Replace 2nd char with 2
+                addr = addr[:1] + '2' + addr[2:]
+                # Prepend fe08
+                addr = "fe80::" + addr
+                print("Converted MAC address input to {}".format(addr))
+
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            srcIPAddress = "None"
+            for i in range(0,len(ipv6AddrTableList)):
+                if is_mac_addr == True:
+                    if('fe80' in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
+                else: # IP address
+                    if('fe80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
+
+            if srcIPAddress == "None":
+                print("Cannot perform CoAP request as device does not have a valid source IP address")
+                return
+
+            for i in range(0,count):
+                print("Sending UDP packet with payload: {}".format(payload_data))
+                udp_req = self.ipv6_factory.build_udp_request(srcIPAddress, addr, payload=payload_data.encode('utf-8'), hop_limit=hop_limit)
+                if udp_req is not None:
+                    self.wpan_api.ip_send(udp_req)
+                    # Let handler print result
+                time.sleep(interval)
+        except:
+            print("Fail")
+            print(traceback.format_exc())
 
     def do_coap(self, line):
         """
-        coap <ipv6 address> <coap request code (get|put|post)> <coap request type (con|non)> <uri_path>
+        coap <address> <coap request code (get|put|post)> <coap request type (con|non)> <uri_path>
              [--led_state <led_target (r|g)> <led_state (0|1)>]
              [--test_option <option_number> [<option_payload>]]
 
@@ -1959,7 +2561,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             allowing the NCP device to get/set the state of LaunchPad LEDs via the target's "led" CoAP resource.
 
             Parameters:
-                ipv6 address:      Destination address for coap request. Multicast addresses are not supported.
+                address:           Destination address for coap request. Can be link local MAC or IP address.
+                                   Multicast addresses are not supported.
                 coap request code: Specify get, put, or post as the CoAP request code
                 coap request type: Specify con (confirmable) or non (non-confirmable) as the CoAP request type.
                 uri_path:          Specify the path of the URI resource. Specify led to target the ns_coap_node
@@ -1971,6 +2574,9 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                    details on CoAP options.
 
             Examples:
+                Get request with MAC address (confirmable):
+                    > coap 00124b0014f942aa get con led
+
                 Get request (confirmable):
                     > coap fdde:ad00:beef:0:558:f56b:d688:799 get con led
 
@@ -1984,6 +2590,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                     > coap fdde:ad00:beef:0:558:f56b:d688:799 get con led --test_option 3 hostname
         """
         global coap_led_req_token
+        global coap_testmetrics_req_token
 
         router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
         if router_state < 5:
@@ -1996,18 +2603,6 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             return
 
         try:
-            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
-            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
-            srcIPAddress = "None"
-            for i in range(0,len(ipv6AddrTableList)):
-                if('0xFE80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
-                    srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
-                    break
-
-            if srcIPAddress == "None":
-                print("Cannot perform CoAP request as device does not have a valid source IP address")
-                return
-
             coap_req = None
             coap_confirm = None
             addr = params[0]
@@ -2016,9 +2611,45 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             elif params[2] == 'non':
                 coap_confirm = ipv6.COAP_TYPE_NON
             else:
-                print("Invalid CoAP request type")
+                print("Invalid CoAP request type. Must be con or non")
                 return
             uri_path = params[3]
+
+            # Decide if address is a MAC or IP address
+            is_mac_addr = False
+            try:
+                addr_convert = ipaddress.IPv6Address(addr)
+            except ipaddress.AddressValueError:
+                if (len(addr) != 16):
+                    print ("Invalid IP/MAC address")
+                    return
+                is_mac_addr = True
+                # covert MAC addr to LL IPv6 Address
+                # Add colons to MAC addr
+                addr = [''.join(i) for i in zip(addr[0::4], addr[1::4], addr[2::4], addr[3::4])]
+                addr = ':'.join(addr)
+                # Replace 2nd char with 2
+                addr = addr[:1] + '2' + addr[2:]
+                # Prepend fe08
+                addr = "fe80::" + addr
+                print("Converted MAC address input to {}".format(addr))
+
+            value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
+            ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
+            srcIPAddress = "None"
+            for i in range(0,len(ipv6AddrTableList)):
+                if is_mac_addr == True:
+                    if('fe80' in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
+                else: # IP address
+                    if('fe80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
+                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                        break
+
+            if srcIPAddress == "None":
+                print("Cannot perform CoAP request as device does not have a valid source IP address")
+                return
 
             option_list = []
             led_target = None
@@ -2049,20 +2680,33 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
             # Generate a random token and save it for ACK usage later
             coap_led_req_token = random.getrandbits(DEFAULT_TKL*8)
+            coap_testmetrics_req_token = random.getrandbits(DEFAULT_TKL*8)
 
-            if params[1] == "get":
-                coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
-                    ipv6.COAP_METHOD_CODE_GET, uri_path, option_list, led_target, led_state,
-                    tkl=DEFAULT_TKL, token=coap_led_req_token)
-            elif params[1] == "put" or params[1] == "post":
-                if params[1] == "put":
+            if uri_path == "led":
+                if params[1] == "get":
                     coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
-                        ipv6.COAP_METHOD_CODE_PUT, uri_path, option_list, led_target, led_state,
+                        ipv6.COAP_METHOD_CODE_GET, uri_path, option_list, led_target, led_state,
                         tkl=DEFAULT_TKL, token=coap_led_req_token)
+                elif params[1] == "put" or params[1] == "post":
+                    if params[1] == "put":
+                        coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
+                            ipv6.COAP_METHOD_CODE_PUT, uri_path, option_list, led_target, led_state,
+                            tkl=DEFAULT_TKL, token=coap_led_req_token)
+                    else:
+                        coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
+                            ipv6.COAP_METHOD_CODE_POST, uri_path, option_list, led_target, led_state,
+                            tkl=DEFAULT_TKL, token=coap_led_req_token)
                 else:
+                    print("Invalid CoAP request code for led")
+                    return
+            elif uri_path == "metrics":
+                if params[1] == "get":
                     coap_req = self.ipv6_factory.build_coap_request(srcIPAddress, addr, coap_confirm,
-                        ipv6.COAP_METHOD_CODE_POST, uri_path, option_list, led_target, led_state,
-                        tkl=DEFAULT_TKL, token=coap_led_req_token)
+                        ipv6.COAP_METHOD_CODE_GET, uri_path, option_list, None, None,
+                        tkl=DEFAULT_TKL, token=coap_testmetrics_req_token)
+                else:
+                    print("Invalid CoAP request code for metrics")
+                    return
             else:
                 print("Invalid CoAP request code")
                 return
@@ -2682,6 +3326,13 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                 # Break the byte stream into different entries
                 last_block = True if (value[0] >> 7) == 1 else False
                 addrEntries = [value[i:i + IPV6_ADDR_LEN] for i in range(1, len(value), IPV6_ADDR_LEN)]
+                try:
+                    with open("./spinel_conn_dev_filter.json", "r") as fp:
+                        filter_json = json.load(fp)
+                        addrEntries[:] = [addr for addr in addrEntries if str(ipaddress.IPv6Address(addr)) not in filter_json]
+                except:
+                    # If file does not exist or cannot be opened, move on without filtering
+                    pass
                 for addrEntry in addrEntries:
                     print(ipaddress.IPv6Address(addrEntry))
                     num_addrs += 1
