@@ -1636,8 +1636,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             #print(nbr_metric)
             rssi_in = int.from_bytes(nbr_metric[8:10], "little", signed=False)
             rssi_out = int.from_bytes(nbr_metric[10:12], "little", signed=False)
-            rssi_in_dBm = (rssi_in/8) - 174
-            rssi_out_dBm = (rssi_out/8) - 174
+            rssi_in_dBm = (rssi_in) - 174
+            rssi_out_dBm = (rssi_out) - 174
             print(binascii.hexlify(nbr_metric[:8]).decode('utf8') + ", " + str(rssi_in_dBm) + "dBm, " + str(rssi_out_dBm) + "dBm")
 
     # for MAC properties
@@ -1658,6 +1658,16 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             > panid 0xdead
             Done
         """
+        params = line.split(" ")
+        if params[0] != "":
+            if self.prop_get_value(SPINEL.PROP_NET_ROLE) != 0:
+                print("Error: Device role must be Border Router for PAN ID configuration.")
+                return
+            router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+            if router_state != 0:
+                print("Error: PAN ID configuration must be done in network state 0 (before network start)")
+                return
+
         self.handle_property(line, SPINEL.PROP_MAC_15_4_PANID, 'H')
         self.my_panid = self.prop_get_value(SPINEL.PROP_MAC_15_4_PANID)
 
@@ -2468,9 +2478,16 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             > udp fd00:7283:7e00:0:212:4b00:1ca1:9463 testdata
             Sending UDP packet with payload: testdata
 
-            Embedded UDP test mode:
-            udp start <#of Packets> - to start sending #of UDP packets from Border Router.
-                Set #of Packets to 0 to send packets indefintely
+        Embedded UDP test mode:
+        udp start <#of Packets> <packet interval> <hop count> <packet length> - to start sending #of UDP packets from Border Router.
+            # of Packets - # of packets to send. Set #of Packets to 0 to send packets indefintely
+            packet interval - duration between each packet (default 1sec)
+            hop count - hop count set on each packet (default 1)
+            packet length - length of each packet (default 20, maximum is 250)
+
+            Examples:
+                > udp start 100
+                > udp start 100 2 3 40
         """
         router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
         if router_state < 5:
@@ -2482,11 +2499,26 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             print("Invalid number of parameters")
             return
 
-        if len(params) < 3:
+        if len(params) > 1:
             if (params[0] == "start"):
                 pkts = params[1]
                 print ("Send UDP pkts for: " + str(pkts))
-                value = self.prop_set_value(SPINEL.PROP_NET_UDP_START, int(pkts), 'L')
+                # Default values, when they are not specified
+                interval = 1
+                pktHopCount = 1
+                pktLen = 20
+                if len(params) > 4:
+                    interval = params[2]
+                    pktHopCount = params[3]
+                    pktLen = params[4]
+
+                # Encode parameters in payload to send
+                payload = (int(pkts) & 0xFFFFFFFF) + ((int(interval) & 0xFF) << 32) + ((int(pktHopCount) & 0xFF) << 40)
+                if (int(pktLen) < 0x14 or int(pktLen) > 0xFF):
+                    pktLen = 0x14
+                payload = payload + ((int(pktLen) & 0xFF) << 48)
+                payload_str = "00" + f'{payload:0>14x}'
+                value = self.handle_property(payload_str, SPINEL.PROP_NET_UDP_START, 'D')
                 return
 
         try:
