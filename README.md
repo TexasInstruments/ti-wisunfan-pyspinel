@@ -47,7 +47,8 @@ $ sudo python3 setup.py install
 
     -u <UART>, --uart=<UART>
        	Open a serial connection to the TI Wi-SUN NCP device
-	where <UART> is a device path such as "/dev/ttyUSB0".
+	      where <UART> is a device path such as "/dev/ttyUSB0".
+        On Windows, use the COM port of the connected NCP device instead (such as "COM1").
 
     -b <BAUDRATE>, --baudrate=<BAUDRATE>
         Specify a serial connection baudrate. By default set to 115200.
