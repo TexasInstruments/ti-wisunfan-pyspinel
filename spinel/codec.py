@@ -530,7 +530,7 @@ class SpinelPropertyHandler(SpinelCodec):
         return self.parse_C(payload)
 
     def PROP_TEST_COMMAND(self, _, payload):
-        return self.parse_b(payload)
+        return self.parse_D(payload)
 
     def PROP_VPIE_COMMAND(self, _, payload):
         return self.parse_b(payload)

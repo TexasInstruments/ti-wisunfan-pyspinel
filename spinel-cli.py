@@ -257,12 +257,13 @@ class IPv6Factory(object):
                                 data,
                                 hop_limit=64,
                                 identifier=None,
-                                sequence_number=None):
+                                sequence_number=None,
+                                generate_mpl_header=False):
         identifier = self._any_identifier() if identifier is None else identifier
         sequence_number = self._get_next_seq_number() if sequence_number is None else sequence_number
 
         _extension_headers = None
-        if ipaddress.IPv6Address(dst).is_multicast:
+        if ipaddress.IPv6Address(dst).is_multicast and generate_mpl_header:
             # Tunnel the IPv6 header + frame (containing the multicast address)
             _extension_headers = [ipv6.HopByHop(options=[
                                  ipv6.HopByHopOption(ipv6.HopByHopOptionHeader(_type=0x6d),
@@ -312,10 +313,11 @@ class IPv6Factory(object):
         return ping_req.to_bytes()
 
     def build_udp_request(self, src, dst, payload=None, hop_limit=64, msg_id=None,
-                           tkl= 0, token=None, src_port=UDP_PORT, dst_port=UDP_PORT):
+                           tkl= 0, token=None, src_port=UDP_PORT, dst_port=UDP_PORT,
+                           generate_mpl_header=False):
         _extension_headers = None
 
-        if ipaddress.IPv6Address(dst).is_multicast:
+        if ipaddress.IPv6Address(dst).is_multicast and generate_mpl_header:
             # Tunnel the IPv6 header + frame (containing the multicast address)
             _extension_headers = [ipv6.HopByHop(options=[
                                  ipv6.HopByHopOption(ipv6.HopByHopOptionHeader(_type=0x6d),
@@ -1366,11 +1368,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             if len(params) == 1:
                 value = self.prop_get_value(SPINEL.PROP_TEST_COMMAND)
                 if value != None:
-                    map_arg_value = {
-                        0: "off",
-                        1: "on",
-                    }
-                    print("EDFE " + map_arg_value[value])
+                    print("EDFE " + str(value))
             elif len(params) == 2:
                 if params[1] == "on":
                     print("Turn EDFE mode on")
@@ -1435,6 +1433,10 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                     print("Error")
             else:
                 print("Invalid number of parameters")
+        elif params[0] == "rcp":
+            value = self.prop_get_value(SPINEL.PROP_TEST_COMMAND)
+            print("EUI: " + binascii.hexlify(value[2:10]).decode('utf-8'))
+            print("Heap failures: " + binascii.hexlify(value[10::]).decode('utf-8'))
 
     def do_wisundirect(self, line):
         """
@@ -2412,8 +2414,8 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         result = self.prop_get_value(SPINEL.PROP_NET_STATE)
         print(result)
         if result != None:
-            state = map_arg_value[result]
-            print(state)
+            # state = map_arg_value[result]
+            # print(state)
             print("Done")
         else:
             print("Error")
