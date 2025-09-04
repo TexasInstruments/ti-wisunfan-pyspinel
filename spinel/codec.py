@@ -487,6 +487,15 @@ class SpinelPropertyHandler(SpinelCodec):
     def PROP_PHY_ASYNC_CHANNEL_LIST(self, _, payload):
         return self.parse_D(payload)
 
+    def PROP_PHY_REGULATORY_CHANNEL_LIST(self, _, payload):
+        return self.parse_D(payload)
+
+    def PROP_PHY_OPERATING_CLASS(self, _, payload):
+        return self.parse_C(payload)
+
+    def PROP_PHY_TOTAL_NUMBER_CHANNEL(self, _, payload):
+        return self.parse_C(payload)
+
     def PROP_NET_STATE(self, _, payload):
         return self.parse_C(payload)
 
@@ -537,7 +546,10 @@ class SpinelPropertyHandler(SpinelCodec):
 
     def PROP_MACMPL_COMMAND(self, _, payload):
         return self.parse_b(payload)
-    
+
+    def PROP_DISABLENSMESSAGES_COMMAND(self, _, payload):
+        return self.parse_b(payload)
+
     def PROP_REVOKE_GTK_HWADDR(self, _, payload):
         return self.parse_E(payload)
 
@@ -719,6 +731,12 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PROP_PHY_BROADCAST_CHANNEL_LIST,
     SPINEL.PROP_PHY_ASYNC_CHANNEL_LIST:
         WPAN_PROP_HANDLER.PROP_PHY_ASYNC_CHANNEL_LIST,
+    SPINEL.PROP_PHY_REGULATORY_CHANNEL_LIST:
+        WPAN_PROP_HANDLER.PROP_PHY_REGULATORY_CHANNEL_LIST,
+    SPINEL.PROP_PHY_OPERATING_CLASS:
+        WPAN_PROP_HANDLER.PROP_PHY_OPERATING_CLASS,
+    SPINEL.PROP_PHY_TOTAL_NUMBER_CHANNEL:
+        WPAN_PROP_HANDLER.PROP_PHY_TOTAL_NUMBER_CHANNEL,
     SPINEL.PROP_NET_STATE:
         WPAN_PROP_HANDLER.PROP_NET_STATE,
     SPINEL.PROP_PARENT_LIST:
@@ -753,6 +771,8 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.PROP_VPIE_COMMAND,
     SPINEL.PROP_MACMPL_COMMAND:
         WPAN_PROP_HANDLER.PROP_MACMPL_COMMAND,
+    SPINEL.PROP_DISABLENSMESSAGES_COMMAND:
+        WPAN_PROP_HANDLER.PROP_DISABLENSMESSAGES_COMMAND,
     SPINEL.PROP_DODAG_ROUTE_DEST:
         WPAN_PROP_HANDLER.DODAG_ROUTE_DEST,
     SPINEL.PROP_DODAG_ROUTE:

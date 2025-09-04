@@ -47,6 +47,7 @@ from spinel.codec import WpanApi
 from spinel.codec import SpinelCodec
 from spinel.stream import StreamOpen
 from spinel.tun import TunInterface
+from spinel.ipv6 import IPv6Packet, IPv6Header
 import spinel.config as CONFIG
 import spinel.util as util
 
@@ -196,6 +197,9 @@ panid_list_get_token = None
 panid_list_set_token = None
 panid_list_bulk_set_token_list = []
 pan_rediscover_req_token = None
+
+# ICMP globals
+generate_ping_response = False
 
 class IPv6Factory(object):
     ipv6_factory = ipv6.IPv6PacketFactory(
@@ -524,6 +528,9 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'unicastchlist',
         'broadcastchlist',
         'asyncchlist',
+        'regulatorychlist',
+        'operatingclass',
+        'numchannels',
         'chspacing',
         'ch0centerfreq',
 
@@ -720,25 +727,32 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         if prop == SPINEL.PROP_STREAM_NET:
             consumed = True
             try:
-                pkt = self.ipv6_factory.from_bytes(value)
+                pkt : IPv6Packet = self.ipv6_factory.from_bytes(value)
+                pktHeader : IPv6Header = pkt.ipv6_header
                 if CONFIG.DEBUG_LOG_PKT:
                     CONFIG.LOGGER.debug(pkt)
                 if pkt.upper_layer_protocol.type == ipv6.IPV6_NEXT_HEADER_ICMP:
                     if pkt.upper_layer_protocol.header.type == ipv6.ICMP_ECHO_REQUEST:
-                        print("\nEcho request: %d bytes from %s to %s, icmp_seq=%d hlim=%d. Sending echo response." %
+                        print("\nEcho request: %d bytes from %s to %s, icmp_seq=%d hlim=%d." %
                               (len(pkt.upper_layer_protocol.body.data),
                                pkt.ipv6_header.source_address,
                                pkt.ipv6_header.destination_address,
                                pkt.upper_layer_protocol.body.sequence_number,
                                pkt.ipv6_header.hop_limit))
-                        # Generate echo response
-                        ping_resp = self.ipv6_factory.build_icmp_echo_response(
-                            src=pkt.ipv6_header.destination_address,
-                            dst=pkt.ipv6_header.source_address,
-                            data=pkt.upper_layer_protocol.body.data,
-                            identifier=pkt.upper_layer_protocol.body.identifier,
-                            sequence_number=pkt.upper_layer_protocol.body.sequence_number)
-                        self.wpan_api.ip_send(ping_resp)
+                        
+                        if generate_ping_response:
+                            print("Sending echo response.")
+                            # Generate echo response
+                            ping_resp = self.ipv6_factory.build_icmp_echo_response(
+                                src=pkt.ipv6_header.destination_address,
+                                dst=pkt.ipv6_header.source_address,
+                                data=pkt.upper_layer_protocol.body.data,
+                                identifier=pkt.upper_layer_protocol.body.identifier,
+                                sequence_number=pkt.upper_layer_protocol.body.sequence_number)
+                            self.wpan_api.ip_send(ping_resp)
+                        else:
+                            print("Dropping request.")
+                            # drop the packet
                         # Let handler print result
                     elif pkt.upper_layer_protocol.header.type == ipv6.ICMP_ECHO_RESPONSE:
                         timenow = int(round(time.time() * 1000)) & 0xFFFFFFFF
@@ -1839,41 +1853,77 @@ class SpinelCliCmd(Cmd, SpinelCodec):
     def do_region(self, line):
         """
         region
-            Get the Wi-SUN Network's regulatory region of operation.
-            1 - NA, 2 - JP, 3 - EU, 7 - BZ, FF --> Custom region
+            Get/Set the Wi-SUN Network's regulatory region of operation.
+                1: "North-America",
+                2: "Japan",
+                3: "Europe",
+                7: "Brazil",
+                4: "China",
+                5: "India",
+                6: "Mexico",
+                8: "Austrialia/New Zealand",
+                9: "Korean",
+                10: "Philippine",
+                11: "Malaysia",
+                12: "Hong Kong",
+                13: "Singapore",
+                14: "Thailand",
+                15: "Vietnam",
+                255: "Custom",
 
+            Get region:
             > region
             1
             Done
 
+            Set region:
+            > region 7
+            7
+            Done
         """
-        value = self.prop_get_value(SPINEL.PROP_PHY_REGION)
+        value = self.handle_property(line, SPINEL.PROP_PHY_REGION, 'i', output=False)
         if value != None:
             map_arg_value = {
                 1: "North-America",
                 2: "Japan",
                 3: "Europe",
                 7: "Brazil",
+                4: "China",
+                5: "India",
+                6: "Mexico",
+                8: "Austrialia/New Zealand",
+                9: "Korean",
+                10: "Philippine",
+                11: "Malaysia",
+                12: "Hong Kong",
+                13: "Singapore",
+                14: "Thailand",
+                15: "Vietnam",
                 255: "Custom",
             }
-            print(str(value) + " : " + map_arg_value[value])
+            if (value in map_arg_value):
+                print(str(value) + " : " + map_arg_value[value])
+            else:
+                print(str(value) + " : Unknown region" )
 
         print("Done")
 
     def do_phymodeid(self, line):
         """
         phymodeid
-            Get the modeID set for Wi-SUN network's operation.
-            Supported values (1-7)
+            Get/Set the modeID set for Wi-SUN network's operation.
+            Supported values (1-8)
 
+            Get PHY Mode ID:
             > phymodeid
             2
             Done
 
+            Set PHY Mode ID:
+            > phymodeid 6
+            Done
         """
-        value = self.prop_get_value(SPINEL.PROP_PHY_MODE_ID)
-        print(value)
-        print("Done")
+        value = self.handle_property(line, SPINEL.PROP_PHY_MODE_ID, 'i')
 
     def do_unicastchlist(self, line):
         """
@@ -2009,18 +2059,100 @@ class SpinelCliCmd(Cmd, SpinelCodec):
             self.wpan_api.chlist_send(inp_bytes, SPINEL.PROP_PHY_ASYNC_CHANNEL_LIST)
         print("Done")
 
+    def do_regulatorychlist(self, line):
+        """
+        do_regulatorychlist
+            Get or Set the Bit Mask to specify what channels can be used for do_regulatory channel.
+            Details is defined PHY2V03
+            Each bit in the bit mask represents if the channel is present or not
+            NA region has 129 channels maximum, thus max bit mask is 17 bytes long
+
+            > regulatorychlist
+            Channel List = 0-128
+            Bit Mask = ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:01
+
+            > regulatorychlist 0-128
+            Channel List = 0-128
+            Bit Mask = ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:ff:01
+            Done
+
+            > regulatorychlist 0-7:15-20:33-46
+            Channel List = 0-7:15-20:33-46
+            Bit Mask = ff:80:1f:00:fe:7f:00:00:00:00:00:00:00:00:00:00:00
+            Done
+
+            > regulatorychlist
+            Channel List = 0-7:15-20:33-46
+            Bit Mask = ff:80:1f:00:fe:7f:00:00:00:00:00:00:00:00:00:00:00
+
+        """
+        params = line.split(" ")
+
+        if params[0] == "": # get
+            value = self.prop_get_value(SPINEL.PROP_PHY_REGULATORY_CHANNEL_LIST)
+            arr_value = [0]*17;
+
+            for i in range(17):
+                arr_value[i] = hex(int.from_bytes(value[i : (i+1)], "little", signed=False))
+            byte_array_input_string = wisun_util.change_format_input_string(arr_value)
+            chan_num_list = wisun_util.convert_to_chan_num_list(byte_array_input_string)
+            print("Channel List = " + str(chan_num_list))
+            print("Bit Mask = " + byte_array_input_string)
+        else:
+            converted_bitmask, inp_bytes = wisun_util.convert_to_bitmask(params[0])
+            print("Channel List = " + str(params[0]))
+            print("Bit Mask = " + wisun_util.format_display_string(str(converted_bitmask)))
+            self.wpan_api.chlist_send(inp_bytes, SPINEL.PROP_PHY_REGULATORY_CHANNEL_LIST)
+        print("Done")
+
+    def do_operatingclass(self, line):
+        """
+        operatingclass
+            Get/Set the operating class
+            Supported values (1-3) (Check the PHY2V03)
+
+            > operatingclass
+            2
+            Done
+
+        """
+        value = self.handle_property(line, SPINEL.PROP_PHY_OPERATING_CLASS, 'i')
+        print(value)
+        print("Done")
+
+    def do_numchannels(self, line):
+        """
+        numchannels
+            Get/Set the total number of channels
+            Supported values (1-129) (Check the PHY2V03)
+
+            > numchannels
+            2
+            Done
+
+        """
+        value = self.handle_property(line, SPINEL.PROP_PHY_TOTAL_NUMBER_CHANNEL, 'i')
+        print(value)
+        print("Done")
+
+
     def do_chspacing(self, line):
 
         """
         chspacing
-            Get the channel spacing in kHz.
+            Get/Set the channel spacing in kHz.
 
+            Get channel spacing:
             > chspacing
             100 kHz
             Done
 
+            Set channel spacing:
+            > chspacing 400
+            400 kHz
+            Done
         """
-        value = self.prop_get_value(SPINEL.PROP_PHY_CH_SPACING)
+        value = self.handle_property(line, SPINEL.PROP_PHY_CH_SPACING, mixed_format='i', output=False)
         ans = int.from_bytes(value, "little", signed=False)
         print(str(ans) + " kHz")
         print("Done")
@@ -2029,14 +2161,20 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
         """
         ch0centerfreq
-            Get the Channel 0 Center frequency formatted as {Ch0-MHz, Ch0-KHz}.
+            Get the Channel 0 Center frequency formatted as {Ch0-MHz, Ch0-KHz} or
+            Set the Channel 0 Center frequency in kHz (e.g. 902900 kHz) 
 
+            Get center frequency:
             > ch0centerfreq
-            {902,200}
+            {902 MHz, 200 KHz}
             Done
 
+            Set center frequency:
+            spinel-cli > ch0centerfreq 920900
+            {920 MHz, 900 kHz}
+            Done
         """
-        value = self.prop_get_value(SPINEL.PROP_PHY_CHO_CENTER_FREQ)
+        value = self.handle_property(line, SPINEL.PROP_PHY_CHO_CENTER_FREQ, mixed_format='i', output=False)
         freqMHz = int.from_bytes(value[:2], "little", signed=False)
         freqkHz = int.from_bytes(value[2:4], "little", signed=False)
         print("{" + str(freqMHz) + " MHz, " + str(freqkHz) + " kHz}")
@@ -2165,6 +2303,9 @@ class SpinelCliCmd(Cmd, SpinelCodec):
 
             Send an ICMPv6 Echo Request.
 
+  	        Address can be a MAC address or an IPv6 address. If a MAC address is provided, it will be converted into a link-local destination address.
+	        If the destination is a link-local address, the source address will also be link-local. Pings destined for global addresses will be sent with a global source address.
+
             > ping fdde:ad00:beef:0:558:f56b:d688:799
             16 bytes from fdde:ad00:beef:0:558:f56b:d688:799: icmp_seq=1 hlim=64 time=28ms
         """
@@ -2185,15 +2326,17 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         if len(params) > 4:
             _hop_limit = int(params[4])
 
+        dst_is_link_local_addr = False
+
         try:
-            is_mac_addr = False
             try:
                 addr_convert = ipaddress.IPv6Address(addr)
+                addr = addr_convert
+                dst_is_link_local_addr = addr_convert.is_link_local
             except ipaddress.AddressValueError:
                 if (len(addr) != 16):
                     print ("Invalid IP/MAC address")
                     return
-                is_mac_addr = True
                 # covert MAC addr to LL IPv6 Address
                 # Add colons to MAC addr
                 addr = [''.join(i) for i in zip(addr[0::4], addr[1::4], addr[2::4], addr[3::4])]
@@ -2202,21 +2345,27 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                 addr = addr[:1] + '2' + addr[2:]
                 # Prepend fe08
                 addr = "fe80::" + addr
+                dst_is_link_local_addr = True
                 print("Converted MAC address input to {}".format(addr))
 
 
-            # Generate local ping packet and send directly via spinel.
+            # Generate ICMPv6 ping packet and send directly via spinel.
             value = self.prop_get_value(SPINEL.PROP_IPV6_ADDRESS_TABLE)
             ipv6AddrTableList = self._parse_ipv6addresstable_property(value)
             srcIPAddress = "None"
             for i in range(0,len(ipv6AddrTableList)):
-                if is_mac_addr == True:
-                    if('fe80' in str(ipv6AddrTableList[i]["ipv6Addr"])):
-                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+
+                selected_addr : ipaddress.IPv6Address = ipv6AddrTableList[i]["ipv6Addr"]
+
+                if dst_is_link_local_addr == True:
+                    # use link local address as source if sending to link local destination
+                    if(selected_addr.is_link_local):
+                        srcIPAddress = str(selected_addr)
                         break
-                else: # ip address
-                    if('fe80' not in str(ipv6AddrTableList[i]["ipv6Addr"])):
-                        srcIPAddress = str(ipv6AddrTableList[i]["ipv6Addr"])
+                else:
+                    # otherwise use global address
+                    if(selected_addr.is_global):
+                        srcIPAddress = str(selected_addr)
                         break
 
             if srcIPAddress == "None":
@@ -3471,6 +3620,54 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         """
         self.wpan_api.cmd_nverase()
 
+    def do_disablensmessages(self, line):
+        """
+        disablensmessages <on/off>
+
+            Disables Neighbor Solicitation (NS) messages. Defaults to false. If set to true, NS messages will not be sent out until this option is turned back off or the device resets.
+
+            > disablensmessages on
+            Done
+
+            > disablensmessages off
+            Done
+
+        disablensmessages
+
+            Shows the state of disablensmessages.
+
+            > disablensmessages
+            on
+            Done
+        """
+        map_arg_value = {
+            0: "off",
+            1: "on",
+        }
+
+        map_arg_name = {
+            "off": "0",
+            "on": "1",
+        }
+
+        if line:
+            try:
+                # remap string state names to integer
+                line = map_arg_name[line]
+            except:
+                print("Error")
+                return
+
+        result = self.prop_get_or_set_value(SPINEL.PROP_DISABLENSMESSAGES_COMMAND, line)
+        if result != None:
+            if not line:
+                print(map_arg_value[result])
+            t = time.localtime()
+            print("Done at " + time.asctime(t))
+        else:
+            print("Error")
+
+
     # other definitions
 
     def _notify_simulator(self):
@@ -3543,16 +3740,24 @@ def parse_args():
                           action="store",
                           dest="vendor_path",
                           type="string")
+    opt_parser.add_option("--generate-ping-response",
+                          action="store_true",
+                          dest="generate_ping_response")
 
     return opt_parser.parse_args(args)
 
 
 def main():
     """ Top-level main for spinel-cli tool. """
+    global generate_ping_response
+    
     (options, remaining_args) = parse_args()
 
     if options.debug:
         CONFIG.debug_set_level(options.debug)
+
+    if options.generate_ping_response:
+        generate_ping_response = True
 
     # Obtain the vendor module path, if provided
     if not options.vendor_path:

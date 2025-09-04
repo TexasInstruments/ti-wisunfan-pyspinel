@@ -89,6 +89,8 @@ def convert_to_chan_num_list(line):
 
         channel_num+=1
 
+    if (len(channel_list) == 0):
+        return "No channels active"
     channel_list_display_string = ''
     lst = channel_list
     result = str(lst[0])

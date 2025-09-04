@@ -485,7 +485,7 @@ class IPv6Packet(ConvertibleToBytes):
     """
 
     def __init__(self,
-                 ipv6_header,
+                 ipv6_header : IPv6Header,
                  upper_layer_protocol,
                  extension_headers=None):
         self.ipv6_header = ipv6_header
