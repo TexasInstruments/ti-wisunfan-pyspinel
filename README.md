@@ -123,6 +123,7 @@ connecteddevices  macfilterlist     region           unicastchlist
 dodagroute        macfiltermode     reset            v
 eapolallowlist    multicastlist     revokeDevice     wisundirect
 exit              ncpversion        role             wisunstack
+tcp
 ```
 
 #### help \<command\>
@@ -189,6 +190,7 @@ Below are some commonly used Wi-SUN FAN stack specific commands supported by the
 - [ipv6addresstable](#ipv6addresstable)
 - [ping](#ping)
 - [udp](#udp)
+- [tcp](#tcp)
 - [multicastlist](#multicastlist)
 - [coap](#coap)
 - [dodagroute](#dodagroute)
@@ -328,6 +330,53 @@ Send an UDP message to a target address.
 ```bash
 spinel-cli > udp fd00:7283:7e00:0:212:4b00:1ca1:9463 testdata
 Sending UDP packet with payload: testdata
+```
+
+#### tcp
+
+Send and receive data over TCP using firmware NPI (binary protocol) commands.
+
+```bash
+# Server: listen on a port
+spinel-cli > tcp npilisten 5678
+Starting TCP server on port 5678...
+TCP server listen command sent (port=5678)
+
+# Client: connect to server
+spinel-cli > tcp npiconnect 2020:abcd::212:4b00:2a35:dbf5 5678
+Connecting to [2020:abcd::212:4b00:2a35:dbf5]:5678...
+TCP connect command sent (18 bytes)
+
+# Send data to all connected peers
+spinel-cli > tcp npisend Hello from NPI
+Sending 14 bytes: Hello from NPI
+TCP send command sent
+
+# Send data to a specific client slot
+spinel-cli > tcp npisendto 0 Hello Client 0
+Sending 14 bytes to slot 0: Hello Client 0
+TCP send-to command sent
+
+# Check firmware TCP status (mode, connected flag, client count)
+spinel-cli > tcp npistatus
+TCP Status: mode=server connected=yes clients=1
+
+# Show received data buffer (last N bytes or all)
+spinel-cli > tcp npirecv
+TCP recv buffer: 14 bytes total  |  Session total: 14 bytes
+
+spinel-cli > tcp npirecv 14
+TCP recv buffer: showing last 14 of 14 bytes  |  Session total: 14 bytes
+  000000: 48 65 6c 6c 6f 20 66 72 6f 6d 20 4e 50 49      |Hello from NPI|
+
+# Clear the receive buffer
+spinel-cli > tcp npirecv clear
+TCP recv buffer cleared, total reset to 0
+
+# Disconnect all TCP connections
+spinel-cli > tcp npidisconnect
+Disconnecting all TCP connections...
+TCP disconnect command sent
 ```
 
 #### coap

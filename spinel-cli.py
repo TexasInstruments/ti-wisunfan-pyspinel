@@ -83,6 +83,9 @@ PLATFORM_CHIP_TYPE_LOOKUP = {
 # UDP constants
 UDP_PORT     = 49153
 
+# TCP constants
+TCP_PORT     = 5678
+
 # Test Metrics Data Index
 TEST_METRICS_FILE_NAME = "test_metrics.csv"
 TEST_METRICS_BR_FILE_NAME = "test_metrics_br.csv"
@@ -201,39 +204,203 @@ pan_rediscover_req_token = None
 # ICMP globals
 generate_ping_response = False
 
-class IPv6Factory(object):
-    ipv6_factory = ipv6.IPv6PacketFactory(
-        ehf={
-            0:
-                ipv6.HopByHopFactory(
-                    hop_by_hop_options_factory=ipv6.HopByHopOptionsFactory(
-                        options_factories={109: ipv6.MPLOptionFactory(), 99: ipv6.RPLOptionFactory()})),
-            43:
-                ipv6.RoutingHeaderFactory(
-                    routing_header_options_factory=ipv6.RoutingHeaderOptionsFactory(
-                        options_factories={3: ipv6.SRHOptionFactory()}))
-        },
-        ulpf={
-            17:
-                ipv6.UDPDatagramFactory(
-                    udp_header_factory=ipv6.UDPHeaderFactory(), dst_port_factories={
-                        COAP_PORT: ipv6.CoAPFactory(),
-                        UDP_PORT: ipv6.UDPBytesPayloadFactory()
-                    }
-                ),
-            58:
-                ipv6.ICMPv6Factory(
-                    body_factories={
-                        128: ipv6.ICMPv6EchoBodyFactory(),
-                        129: ipv6.ICMPv6EchoBodyFactory()
-                    }
-                )
-        })
+class TCPConnectionManager:
+    """Manages TCP connections and their states."""
+
+    # TCP Connection States
+    CLOSED = 0
+    LISTEN = 1
+    SYN_SENT = 2
+    SYN_RECEIVED = 3
+    ESTABLISHED = 4
+    FIN_WAIT_1 = 5
+    FIN_WAIT_2 = 6
+    CLOSE_WAIT = 7
+    CLOSING = 8
+    LAST_ACK = 9
+    TIME_WAIT = 10
 
     def __init__(self):
+        self.connections = {}  # Key: (src_addr, src_port, dst_addr, dst_port)
+        self.listening_ports = set()
+        self.seq_numbers = {}  # Track sequence numbers per connection
+        self.connection_id_counter = 0  # Add unique ID counter
+
+    def create_connection(self, src_addr, src_port, dst_addr, dst_port, is_server=False):
+        """Create a new TCP connection entry."""
+        conn_key = (src_addr, src_port, dst_addr, dst_port)
+
+        # For loopback connections, differentiate client and server
+        if src_addr == dst_addr and src_port == dst_port and is_server:
+            # Add a marker to differentiate server-side connection
+            conn_key = (dst_addr, dst_port, src_addr, src_port, "server")
+
+        # Check if connection already exists
+        if conn_key in self.connections:
+            return conn_key
+
+        self.connections[conn_key] = {
+            'state': self.CLOSED,
+            'seq_num': random.randint(1000, 100000),
+            'ack_num': 0,
+            'window': 8192,
+            'is_server': is_server,
+            'conn_id': self.connection_id_counter
+        }
+        self.connection_id_counter += 1
+        self.seq_numbers[conn_key] = self.connections[conn_key]['seq_num']
+        return conn_key
+
+    def update_state(self, conn_key, new_state):
+        """Update connection state."""
+        if conn_key in self.connections:
+            self.connections[conn_key]['state'] = new_state
+
+    def get_connection(self, conn_key):
+        """Get connection information."""
+        return self.connections.get(conn_key)
+
+    def find_connection(self, src_addr, src_port, dst_addr, dst_port):
+        """Find connection by endpoints, checking both directions."""
+        # Try direct match
+        direct_key = (src_addr, src_port, dst_addr, dst_port)
+        if direct_key in self.connections:
+            return direct_key, self.connections[direct_key]
+
+        # Try reverse match
+        reverse_key = (dst_addr, dst_port, src_addr, src_port)
+        if reverse_key in self.connections:
+            return reverse_key, self.connections[reverse_key]
+
+        # Try with server marker for loopback
+        if src_addr == dst_addr and src_port == dst_port:
+            server_key = (dst_addr, dst_port, src_addr, src_port, "server")
+            if server_key in self.connections:
+                return server_key, self.connections[server_key]
+
+        return None, None
+
+    def listen_on_port(self, port):
+        """Mark a port as listening."""
+        self.listening_ports.add(port)
+
+    def is_listening(self, port):
+        """Check if a port is listening."""
+        return port in self.listening_ports
+
+    def close_connection(self, conn_key):
+        """Close and remove a connection."""
+        if conn_key in self.connections:
+            del self.connections[conn_key]
+        if conn_key in self.seq_numbers:
+            del self.seq_numbers[conn_key]
+
+    def get_next_seq_num(self, conn_key, data_len=0):
+        """Get next sequence number for connection."""
+        if conn_key in self.seq_numbers:
+            seq = self.seq_numbers[conn_key]
+            self.seq_numbers[conn_key] += data_len if data_len > 0 else 1
+            return seq
+        return 0
+
+    def get_state_name(self, state):
+        """Get human-readable state name."""
+        states = {
+            self.CLOSED: "CLOSED",
+            self.LISTEN: "LISTEN",
+            self.SYN_SENT: "SYN_SENT",
+            self.SYN_RECEIVED: "SYN_RECEIVED",
+            self.ESTABLISHED: "ESTABLISHED",
+            self.FIN_WAIT_1: "FIN_WAIT_1",
+            self.FIN_WAIT_2: "FIN_WAIT_2",
+            self.CLOSE_WAIT: "CLOSE_WAIT",
+            self.CLOSING: "CLOSING",
+            self.LAST_ACK: "LAST_ACK",
+            self.TIME_WAIT: "TIME_WAIT"
+        }
+        return states.get(state, "UNKNOWN")
+
+
+class TcpReassembler:
+    """Reassembles chunked TCP data from firmware into complete messages by msg_id."""
+    TIMEOUT = 5.0
+
+    def __init__(self):
+        self.pending = {}
+
+    def handle_chunk(self, msg_id, chunk_index, total_chunks, total_len,
+                     peer_addr, peer_port, chunk_data):
+        if msg_id not in self.pending:
+            self.pending[msg_id] = {
+                'total_chunks': total_chunks,
+                'total_len': total_len,
+                'peer_addr': peer_addr,
+                'peer_port': peer_port,
+                'chunks': {},
+                'timestamp': time.time(),
+            }
+
+        entry = self.pending[msg_id]
+        entry['chunks'][chunk_index] = chunk_data
+
+        if len(entry['chunks']) == entry['total_chunks']:
+            data = b''
+            for i in range(entry['total_chunks']):
+                data += entry['chunks'].get(i, b'')
+            del self.pending[msg_id]
+            return (data, entry['peer_addr'], entry['peer_port'])
+        return None
+
+    def cleanup_stale(self):
+        now = time.time()
+        stale = [mid for mid, e in self.pending.items()
+                 if now - e['timestamp'] > self.TIMEOUT]
+        for mid in stale:
+            e = self.pending[mid]
+            print(f"  [WARN] TCP reassembly timeout: msg_id={mid}, "
+                  f"got {len(e['chunks'])}/{e['total_chunks']} chunks")
+            del self.pending[mid]
+
+
+class IPv6Factory(object):
+
+    def __init__(self, tcp_port=TCP_PORT):
         self.seq_number = 0
         self.mpl_seq_number = 0
         self.coap_msg_id = 0
+        self.ipv6_factory = ipv6.IPv6PacketFactory(
+            ehf={
+                0:
+                    ipv6.HopByHopFactory(
+                        hop_by_hop_options_factory=ipv6.HopByHopOptionsFactory(
+                            options_factories={109: ipv6.MPLOptionFactory(), 99: ipv6.RPLOptionFactory()})),
+                43:
+                    ipv6.RoutingHeaderFactory(
+                        routing_header_options_factory=ipv6.RoutingHeaderOptionsFactory(
+                            options_factories={3: ipv6.SRHOptionFactory()}))
+            },
+            ulpf={
+                6:
+                    ipv6.TCPSegmentFactory(
+                        tcp_header_factory=ipv6.TCPHeaderFactory(), dst_port_factories={
+                            tcp_port: ipv6.TCPBytesPayloadFactory()
+                        }
+                    ),
+                17:
+                    ipv6.UDPDatagramFactory(
+                        udp_header_factory=ipv6.UDPHeaderFactory(), dst_port_factories={
+                            COAP_PORT: ipv6.CoAPFactory(),
+                            UDP_PORT: ipv6.UDPBytesPayloadFactory()
+                        }
+                    ),
+                58:
+                    ipv6.ICMPv6Factory(
+                        body_factories={
+                            128: ipv6.ICMPv6EchoBodyFactory(),
+                            129: ipv6.ICMPv6EchoBodyFactory()
+                        }
+                    )
+            })
 
     def _any_identifier(self):
         return random.getrandbits(16)
@@ -347,6 +514,123 @@ class IPv6Factory(object):
         )
         return udp_dgram.to_bytes()
 
+    def build_tcp_syn(self, src, dst, src_port=TCP_PORT, dst_port=TCP_PORT,
+                      seq_num=None, hop_limit=64, mss=1220):
+        """Build TCP SYN packet to initiate connection."""
+        if seq_num is None:
+            seq_num = random.randint(1000, 100000)
+
+        # Build MSS option: Kind(2) + Length(4) + MSS value (2 bytes)
+        mss_option = bytes([0x02, 0x04]) + struct.pack(">H", mss)
+
+        tcp_segment = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit),
+            upper_layer_protocol=ipv6.TCPSegment(
+                header=ipv6.TCPHeader(src_port=src_port, dst_port=dst_port,
+                                     seq_num=seq_num, ack_num=0,
+                                     data_offset=6,  # 5 (base) + 1 (4 bytes of options)
+                                     flags=ipv6.TCPHeader.SYN,
+                                     options=mss_option),
+                payload=None
+            )
+        )
+        return tcp_segment.to_bytes()
+
+    def build_tcp_syn_ack(self, src, dst, src_port, dst_port, seq_num, ack_num,
+                          hop_limit=64, window=8192, mss=1220):
+        """Build TCP SYN-ACK packet to respond to incoming SYN."""
+        mss_option = bytes([0x02, 0x04]) + struct.pack(">H", mss)
+
+        tcp_segment = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit),
+            upper_layer_protocol=ipv6.TCPSegment(
+                header=ipv6.TCPHeader(src_port=src_port, dst_port=dst_port,
+                                     seq_num=seq_num, ack_num=ack_num,
+                                     data_offset=6,  # 5 (base) + 1 (4 bytes of options)
+                                     flags=ipv6.TCPHeader.SYN | ipv6.TCPHeader.ACK,
+                                     window=window,
+                                     options=mss_option),
+                payload=None
+            )
+        )
+        return tcp_segment.to_bytes()
+
+    def build_tcp_ack(self, src, dst, src_port, dst_port, seq_num, ack_num,
+                      hop_limit=64, window=8192):
+        """Build TCP ACK packet."""
+        tcp_segment = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit),
+            upper_layer_protocol=ipv6.TCPSegment(
+                header=ipv6.TCPHeader(src_port=src_port, dst_port=dst_port,
+                                     seq_num=seq_num, ack_num=ack_num,
+                                     flags=ipv6.TCPHeader.ACK,
+                                     window=window),
+                payload=None
+            )
+        )
+        return tcp_segment.to_bytes()
+
+    def build_tcp_data(self, src, dst, src_port, dst_port, seq_num, ack_num,
+                       data, hop_limit=64, window=8192):
+        """Build TCP data packet."""
+        tcp_payload = ipv6.TCPBytesPayload(data if isinstance(data, bytes) else data.encode('utf-8'))
+
+        tcp_segment = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit),
+            upper_layer_protocol=ipv6.TCPSegment(
+                header=ipv6.TCPHeader(src_port=src_port, dst_port=dst_port,
+                                     seq_num=seq_num, ack_num=ack_num,
+                                     flags=ipv6.TCPHeader.ACK | ipv6.TCPHeader.PSH,
+                                     window=window),
+                payload=tcp_payload
+            )
+        )
+        return tcp_segment.to_bytes()
+
+    def build_tcp_fin(self, src, dst, src_port, dst_port, seq_num, ack_num,
+                      hop_limit=64, window=8192):
+        """Build TCP FIN packet to close connection."""
+        tcp_segment = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit),
+            upper_layer_protocol=ipv6.TCPSegment(
+                header=ipv6.TCPHeader(src_port=src_port, dst_port=dst_port,
+                                     seq_num=seq_num, ack_num=ack_num,
+                                     flags=ipv6.TCPHeader.FIN | ipv6.TCPHeader.ACK,
+                                     window=window),
+                payload=None
+            )
+        )
+        return tcp_segment.to_bytes()
+
+    def build_tcp_rst(self, src, dst, src_port, dst_port, seq_num,
+                      ack_num=0, hop_limit=64):
+        """Build TCP RST packet to reset connection."""
+        flags = ipv6.TCPHeader.RST
+        if ack_num > 0:
+            flags |= ipv6.TCPHeader.ACK
+
+        tcp_segment = ipv6.IPv6Packet(
+            ipv6_header=ipv6.IPv6Header(source_address=src,
+                                        destination_address=dst,
+                                        hop_limit=hop_limit),
+            upper_layer_protocol=ipv6.TCPSegment(
+                header=ipv6.TCPHeader(src_port=src_port, dst_port=dst_port,
+                                     seq_num=seq_num, ack_num=ack_num,
+                                     flags=flags),
+                payload=None
+            )
+        )
+        return tcp_segment.to_bytes()
 
     def build_coap_request(self, src, dst, coap_type, coap_method_code, uri_path, option_list=None,
                            led_target=None, led_state=None, payload=None, hop_limit=64, msg_id=None,
@@ -407,6 +691,14 @@ class SpinelCliCmd(Cmd, SpinelCodec):
     """
 
     ipv6_factory = IPv6Factory()
+    tcp_reassembler = TcpReassembler()
+    tcp_recv_log = bytearray()        # rolling buffer of all received TCP data
+    tcp_recv_log_peer = ""            # peer address of last received data
+    tcp_recv_log_port = 0             # peer port of last received data
+    tcp_last_event = 0               # last TCP event code (0=none, 3=LISTEN_STARTED, etc.)
+    tcp_last_connected = 0           # connected flag from last notification
+    tcp_event_log = []               # list of (event, connected, timestamp) tuples
+    tcp_total_bytes_recv = 0         # cumulative bytes received across all messages
 
     def _get_routing_table(self):
         return self.routing_table_dict
@@ -429,7 +721,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
     def clear_routing_table(self):
         self.routing_table_dict.clear()
 
-    def __init__(self, stream, nodeid, vendor_module, *_a, **kw):
+    def __init__(self, stream, nodeid, vendor_module, tcp_port=TCP_PORT, *_a, **kw):
         if self.VIRTUAL_TIME:
             self._init_virtual_time()
         self.nodeid = nodeid
@@ -448,10 +740,21 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         self.wpan_api.callback_register(SPINEL.PROP_ROUTING_TABLE_UPDATE,
                                         self.wpan_routing_table_update_cb)
 
+        self.wpan_api.callback_register(SPINEL.PROP_VENDOR_TCP_STATUS_NOTIFY,
+                                        self.wpan_tcp_status_notify_cb)
+
+        self.wpan_api.callback_register(SPINEL.PROP_VENDOR_TCP_DATA_RECV,
+                                        self.wpan_tcp_data_recv_cb)
+
         # Default panid list json file
         # self.panid_list_json_path = "panid_list_example.json"
         self.panid_list_json_path = ""
         self.my_panid = self.prop_get_value(SPINEL.PROP_MAC_15_4_PANID)
+
+        # Initialize IPv6 factory and TCP connection manager
+        self.tcp_src_port = tcp_port
+        self.ipv6_factory = IPv6Factory(tcp_port=tcp_port)
+        self.tcp_manager = TCPConnectionManager()
 
         Cmd.__init__(self)
         Cmd.identchars = string.ascii_letters + string.digits + '-'
@@ -553,6 +856,7 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         'ipv6addresstable',
         'multicastlist',
         'udp',
+        'tcp',
         'coap',
         'numconnected',
         'connecteddevices',
@@ -766,6 +1070,119 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                                pkt.ipv6_header.hop_limit, timedelta))
                     else:
                         print("ICMP packet received")
+                elif pkt.upper_layer_protocol.type == 6:  # TCP
+                    tcp_pkt = pkt.upper_layer_protocol
+                    h = tcp_pkt.header
+
+                    # Check if this is for a listening port
+                    if self.tcp_manager.is_listening(h.dst_port):
+                        if h.has_flag(ipv6.TCPHeader.SYN) and not h.has_flag(ipv6.TCPHeader.ACK):
+                            # Incoming SYN - new connection request
+                            print(f"\nTCP SYN received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                            print(f"  Seq: {h.seq_num}, Window: {h.window}")
+
+                            # Create server-side connection
+                            server_conn_key = self.tcp_manager.create_connection(
+                                pkt.ipv6_header.destination_address, h.dst_port,
+                                pkt.ipv6_header.source_address, h.src_port, is_server=True)
+
+                            # Send SYN-ACK
+                            server_conn = self.tcp_manager.get_connection(server_conn_key)
+                            syn_ack = self.ipv6_factory.build_tcp_syn_ack(
+                                pkt.ipv6_header.destination_address,
+                                pkt.ipv6_header.source_address,
+                                h.dst_port, h.src_port,
+                                server_conn['seq_num'],
+                                h.seq_num + 1)
+
+                            print("Sending TCP SYN-ACK...")
+                            self.wpan_api.ip_send(syn_ack)
+                            self.tcp_manager.update_state(server_conn_key, self.tcp_manager.SYN_RECEIVED)
+                            server_conn['ack_num'] = h.seq_num + 1
+
+                    # Check for existing connections
+                    conn_key_found, conn = self.tcp_manager.find_connection(
+                        pkt.ipv6_header.destination_address, h.dst_port,
+                        pkt.ipv6_header.source_address, h.src_port
+                    )
+
+                    if conn:
+                        conn_key_to_use = conn_key_found
+
+                        if h.has_flag(ipv6.TCPHeader.RST):
+                            print(f"\nTCP RST received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                            self.tcp_manager.close_connection(conn_key_to_use)
+
+                        elif h.has_flag(ipv6.TCPHeader.FIN):
+                            print(f"\nTCP FIN received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                            fin_ack = self.ipv6_factory.build_tcp_ack(
+                                pkt.ipv6_header.destination_address,
+                                pkt.ipv6_header.source_address,
+                                h.dst_port, h.src_port,
+                                conn['seq_num'],
+                                h.seq_num + 1)
+                            self.wpan_api.ip_send(fin_ack)
+                            self.tcp_manager.update_state(conn_key_to_use, self.tcp_manager.CLOSE_WAIT)
+
+                        elif h.has_flag(ipv6.TCPHeader.SYN) and h.has_flag(ipv6.TCPHeader.ACK):
+                            # SYN-ACK received — complete 3-way handshake
+                            print(f"\nTCP SYN-ACK received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                            conn['ack_num'] = h.seq_num + 1
+                            ack = self.ipv6_factory.build_tcp_ack(
+                                pkt.ipv6_header.destination_address,
+                                pkt.ipv6_header.source_address,
+                                h.dst_port, h.src_port,
+                                h.ack_num,
+                                h.seq_num + 1)
+                            self.wpan_api.ip_send(ack)
+                            self.tcp_manager.update_state(conn_key_to_use, self.tcp_manager.ESTABLISHED)
+                            print("TCP connection established!")
+
+                        elif h.has_flag(ipv6.TCPHeader.ACK):
+                            if h.has_flag(ipv6.TCPHeader.PSH):
+                                # Data packet
+                                if tcp_pkt.payload and len(tcp_pkt.payload.data) > 0:
+                                    try:
+                                        data_str = tcp_pkt.payload.data.decode('utf-8')
+                                        print(f"\nTCP data received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                                        print(f"  Data ({len(tcp_pkt.payload.data)} bytes): {data_str}")
+                                    except Exception:
+                                        print(f"\nTCP data received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                                        print(f"  Binary data ({len(tcp_pkt.payload.data)} bytes)")
+
+                                    # Send ACK for received data
+                                    conn['ack_num'] = h.seq_num + len(tcp_pkt.payload.data)
+                                    ack = self.ipv6_factory.build_tcp_ack(
+                                        pkt.ipv6_header.destination_address,
+                                        pkt.ipv6_header.source_address,
+                                        h.dst_port, h.src_port,
+                                        conn['seq_num'],
+                                        conn['ack_num'])
+                                    self.wpan_api.ip_send(ack)
+                            else:
+                                # Pure ACK
+                                if conn['state'] == self.tcp_manager.SYN_RECEIVED:
+                                    self.tcp_manager.update_state(conn_key_to_use, self.tcp_manager.ESTABLISHED)
+                                    print("TCP connection fully established!")
+                    else:
+                        # No existing connection
+                        if h.has_flag(ipv6.TCPHeader.SYN) and not h.has_flag(ipv6.TCPHeader.ACK):
+                            print(f"\nTCP SYN received from [{pkt.ipv6_header.source_address}]:{h.src_port} (no listener on port {h.dst_port})")
+                            # Send RST+ACK to reject the connection per RFC 793
+                            rst_pkt = self.ipv6_factory.build_tcp_rst(
+                                pkt.ipv6_header.destination_address,
+                                pkt.ipv6_header.source_address,
+                                h.dst_port,
+                                h.src_port,
+                                seq_num=0,
+                                ack_num=h.seq_num + 1
+                            )
+                            self.wpan_api.ip_send(rst_pkt)
+                            print(f"  Sent RST+ACK to reject connection")
+                        else:
+                            print(f"\nTCP packet received from [{pkt.ipv6_header.source_address}]:{h.src_port}")
+                            print(f"  Flags: SYN={h.has_flag(ipv6.TCPHeader.SYN)}, ACK={h.has_flag(ipv6.TCPHeader.ACK)}, "
+                                  f"FIN={h.has_flag(ipv6.TCPHeader.FIN)}, RST={h.has_flag(ipv6.TCPHeader.RST)}")
                 elif pkt.upper_layer_protocol.type == ipv6.IPV6_NEXT_HEADER_UDP:
                     udp_pkt = pkt.upper_layer_protocol
                     if udp_pkt.header.dst_port == COAP_PORT:
@@ -1087,6 +1504,92 @@ class SpinelCliCmd(Cmd, SpinelCodec):
         if prop == SPINEL.PROP_ROUTING_TABLE_UPDATE:
             consumed = True
             cls.update_routing_dict(value)
+
+        return consumed
+
+    # TCP event name lookup
+    TCP_EVENT_NAMES = {
+        1: "CONNECTED",
+        2: "DISCONNECTED",
+        3: "LISTEN_STARTED",
+        4: "CLIENT_ACCEPTED",
+        5: "CONNECT_FAILED",
+        6: "DATA_RECEIVED",
+    }
+
+    @classmethod
+    def wpan_tcp_status_notify_cb(cls, prop, value, tid):
+        consumed = False
+
+        if prop == SPINEL.PROP_VENDOR_TCP_STATUS_NOTIFY:
+            # Old event path: SendTcpStatusNotification — [event(1B), connected(1B)]
+            consumed = True
+            try:
+                event     = value[0]
+                connected = value[1]
+                cls.tcp_last_event     = event
+                cls.tcp_last_connected = connected
+                cls.tcp_event_log.append((event, connected, time.time()))
+                event_name = cls.TCP_EVENT_NAMES.get(event, f"UNKNOWN({event})")
+                t = time.localtime()
+                print(f"\nTCP [{event_name}] at {time.asctime(t)}")
+                print(f"  Connected: {'yes' if connected else 'no'}")
+            except Exception as e:
+                print(f"\nTCP notification error: {e}")
+
+        elif prop == SPINEL.PROP_VENDOR_TCP_STATUS and tid == SPINEL.HEADER_ASYNC:
+            # New event path: SendTcpEvent — [mode(1B), connected(1B), clients(1B)]
+            # Only consume unsolicited frames (HEADER_ASYNC); GET responses
+            # (HEADER_DEFAULT) must reach queue_wait_for_prop unchanged.
+            consumed = True
+            try:
+                connected = value[1]  # 1 = connected, 0 = disconnected
+                event     = 1 if connected else 2
+                cls.tcp_last_event     = event
+                cls.tcp_last_connected = connected
+                cls.tcp_event_log.append((event, connected, time.time()))
+                event_name = cls.TCP_EVENT_NAMES.get(event, f"UNKNOWN({event})")
+                t = time.localtime()
+                print(f"\nTCP [{event_name}] at {time.asctime(t)}")
+                print(f"  Connected: {'yes' if connected else 'no'}")
+            except Exception as e:
+                print(f"\nTCP status event error: {e}")
+
+        return consumed
+
+    @classmethod
+    def wpan_tcp_data_recv_cb(cls, prop, value, tid):
+        consumed = False
+
+        # Old received-data path: SendTcpDataRecv sends on PROP_VENDOR_TCP_DATA_RECV (0x3D08)
+        # New received-data path: SendTcpRxData sends on PROP_VENDOR_TCP_SEND_ALL (0x3D03).
+        # For SEND_ALL only consume unsolicited frames (HEADER_ASYNC) so that our own
+        # npisend SET responses (HEADER_DEFAULT) are not swallowed.
+        is_data_recv      = (prop == SPINEL.PROP_VENDOR_TCP_DATA_RECV)
+        is_rx_on_send_all = (prop == SPINEL.PROP_VENDOR_TCP_SEND_ALL and
+                             tid  == SPINEL.HEADER_ASYNC)
+
+        if is_data_recv or is_rx_on_send_all:
+            consumed = True
+            try:
+                # Both paths encode: uint16 len (LE) + raw data bytes
+                data_len = value[0] | (value[1] << 8)
+                tcp_data = bytes(value[2:2 + data_len])
+
+                cls.tcp_total_bytes_recv += data_len
+                cls.tcp_recv_log.extend(tcp_data)
+
+                t = time.localtime()
+                print(f"\nTCP data received at {time.asctime(t)}")
+                print(f"  Length: {data_len} bytes  |  Total: {cls.tcp_total_bytes_recv} bytes")
+
+                hex_str = ' '.join(f'{b:02x}' for b in tcp_data[:64])
+                print(f"  Data (hex): {hex_str}")
+                if data_len > 64:
+                    print(f"  ... ({data_len - 64} more bytes)")
+
+            except Exception as e:
+                print(f"\nTCP data recv error: {e}")
 
         return consumed
 
@@ -2732,6 +3235,194 @@ class SpinelCliCmd(Cmd, SpinelCodec):
                 time.sleep(interval)
         except:
             print("Fail")
+            print(traceback.format_exc())
+
+    def do_tcp(self, line):
+        """
+        tcp <command> [arguments]
+            Manage TCP connections via firmware NPI (binary protocol).
+
+        NPI Commands (firmware-side TCP socket control):
+            tcp npistatus - Get status (mode + connected + client count)
+            tcp npilisten <port> - Start TCP server on <port>
+            tcp npiconnect <ipv6_address> <port> - Connect to TCP server
+            tcp npisend <data> - Send data to all connected peers
+            tcp npisendto <slot> <data> - Send data to specific client slot
+            tcp npidisconnect - Disconnect all TCP connections
+            tcp npirecv [<N>|clear] - Show last N bytes of received data, or clear buffer
+
+        Examples:
+            > tcp npilisten 5678
+            Starting TCP server on port 5678...
+
+            > tcp npiconnect 2020:abcd::212:4b00:1ca1:9463 5678
+            Connecting to [2020:abcd::212:4b00:1ca1:9463]:5678...
+
+            > tcp npisend Hello from NPI
+            Sending 14 bytes: Hello from NPI
+
+            > tcp npisendto 0 Hello Client 0
+            Sending 14 bytes to slot 0: Hello Client 0
+
+            > tcp npistatus
+            TCP Status: mode=server connected=yes clients=1
+        """
+        router_state = self.prop_get_value(SPINEL.PROP_NET_STATE)
+        if router_state < 5:
+            print("Error: Device must be in join state 5 (Successfully joined and operational) to process TCP commands")
+            return
+
+        params = line.split()
+        if len(params) < 1:
+            print("Invalid number of parameters. Use 'help tcp' for usage.")
+            return
+
+        command = params[0].lower()
+
+        try:
+            if command == "npilisten":
+                if len(params) < 2:
+                    print("Usage: tcp npilisten <port>")
+                    return
+
+                port = int(params[1])
+                print(f"Starting TCP server on port {port}...")
+                self.prop_set_value(SPINEL.PROP_VENDOR_TCP_SERVER_LISTEN, port, 'H')
+                print(f"TCP server listen command sent (port={port})")
+
+            elif command == "npiconnect":
+                if len(params) < 3:
+                    print("Usage: tcp npiconnect <ipv6_address> <port>")
+                    return
+
+                addr_str = params[1]
+                port = int(params[2])
+
+                try:
+                    addr_obj = ipaddress.IPv6Address(addr_str)
+                except ipaddress.AddressValueError:
+                    print(f"Invalid IPv6 address: {addr_str}")
+                    return
+
+                # Pack: 16-byte IPv6 (network byte order) + uint16 port (little-endian)
+                payload = addr_obj.packed + struct.pack('<H', port)
+                print(f"Connecting to [{addr_str}]:{port}...")
+                self.prop_set_value(SPINEL.PROP_VENDOR_TCP_CLIENT_CONNECT, payload, str(len(payload)) + 's')
+                print(f"TCP connect command sent ({len(payload)} bytes)")
+
+            elif command == "npisend":
+                if len(params) < 2:
+                    print("Usage: tcp npisend <data>")
+                    return
+
+                data = ' '.join(params[1:])
+                data_bytes = data.encode('utf-8')
+
+                # Pack: uint16 length + data bytes (Spinel 'd' format)
+                payload = struct.pack('<H', len(data_bytes)) + data_bytes
+                print(f"Sending {len(data_bytes)} bytes: {data}")
+                self.prop_set_value(SPINEL.PROP_VENDOR_TCP_SEND_ALL, payload, str(len(payload)) + 's')
+                print("TCP send command sent")
+
+            elif command == "npisendto":
+                if len(params) < 3:
+                    print("Usage: tcp npisendto <slot> <data>")
+                    return
+
+                slot = int(params[1])
+                data = ' '.join(params[2:])
+                data_bytes = data.encode('utf-8')
+
+                # Validate slot against live firmware status before sending.
+                # Sending to a non-existent slot causes the firmware to disconnect.
+                try:
+                    status = self.prop_get_value(SPINEL.PROP_VENDOR_TCP_STATUS)
+                    if status is None or not isinstance(status, (bytes, bytearray)) or len(status) < 3:
+                        print("Error: Could not get TCP status from firmware")
+                        return
+                    connected = status[1]
+                    client_count = status[2]
+                    if not connected or client_count == 0:
+                        print(f"Error: No clients connected (connected={'yes' if connected else 'no'}, clients={client_count})")
+                        return
+                    if slot >= client_count:
+                        print(f"Error: Slot {slot} does not exist (clients={client_count}, valid slots: 0-{client_count - 1})")
+                        return
+                except Exception as e:
+                    print(f"Error: Could not validate TCP status before send: {e}")
+                    return
+
+                # npisendto is a wrapper around npisend — slot is always 0.
+                payload = struct.pack('<H', len(data_bytes)) + data_bytes
+                print(f"Sending {len(data_bytes)} bytes to slot {slot}: {data}")
+                self.prop_set_value(SPINEL.PROP_VENDOR_TCP_SEND_ALL, payload, str(len(payload)) + 's')
+                print("TCP send-to command sent")
+
+            elif command == "npistatus":
+                print("Getting TCP status from firmware...")
+                try:
+                    status = self.prop_get_value(SPINEL.PROP_VENDOR_TCP_STATUS)
+                    if status is None:
+                        print("TCP Status: No response from firmware")
+                        return
+
+                    if not isinstance(status, (bytes, bytearray)) or len(status) < 3:
+                        print(f"TCP Status: Unexpected response: {status}")
+                        return
+
+                    TCP_MODE_NAMES = {0: "server", 1: "client"}
+                    mode      = status[0]
+                    connected = status[1]
+                    clients   = status[2]
+                    mode_str  = TCP_MODE_NAMES.get(mode, f"unknown({mode})")
+                    print(f"TCP Status: mode={mode_str} connected={'yes' if connected else 'no'} clients={clients}")
+                except Exception as e:
+                    print(f"Failed to get TCP status: {e}")
+
+            elif command == "npidisconnect":
+                print("Disconnecting all TCP connections...")
+                self.prop_set_value(SPINEL.PROP_VENDOR_TCP_DISCONNECT, b'', '0s')
+                print("TCP disconnect command sent")
+
+            elif command == "npirecv":
+                buf = self.tcp_recv_log
+                total = len(buf)
+
+                if len(params) < 2:
+                    print(f"TCP recv buffer: {total} bytes total  |  Session total: {self.tcp_total_bytes_recv} bytes")
+                    if total > 0:
+                        print(f"  Last peer: [{self.tcp_recv_log_peer}]:{self.tcp_recv_log_port}")
+                    print("Usage: tcp npirecv <num_bytes>  — print last N bytes")
+                    print("       tcp npirecv clear        — clear buffer and reset total")
+                elif params[1] == "clear":
+                    self.tcp_recv_log.clear()
+                    self.tcp_total_bytes_recv = 0
+                    print("TCP recv buffer cleared, total reset to 0")
+                else:
+                    n = int(params[1])
+                    if total == 0:
+                        print("TCP recv buffer is empty")
+                    else:
+                        tail = bytes(buf[-n:]) if n < total else bytes(buf)
+                        print(f"TCP recv buffer: showing last {len(tail)} of {total} bytes  |  Session total: {self.tcp_total_bytes_recv} bytes")
+                        if self.tcp_recv_log_peer:
+                            print(f"  Last peer: [{self.tcp_recv_log_peer}]:{self.tcp_recv_log_port}")
+
+                        # Hex dump in rows of 16
+                        offset = total - len(tail)
+                        for row_start in range(0, len(tail), 16):
+                            row = tail[row_start:row_start + 16]
+                            hex_part = ' '.join(f'{b:02x}' for b in row)
+                            ascii_part = ''.join(chr(b) if 0x20 <= b < 0x7f else '.' for b in row)
+                            print(f"  {offset + row_start:06x}: {hex_part:<48s} |{ascii_part}|")
+
+            else:
+                print(f"Unknown TCP command: {command}")
+                print("Use 'help tcp' for usage information")
+                print("NPI commands: npilisten, npiconnect, npisend, npisendto, npistatus, npidisconnect, npirecv")
+
+        except Exception as e:
+            print(f"TCP command failed: {e}")
             print(traceback.format_exc())
 
     def do_coap(self, line):

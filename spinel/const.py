@@ -152,11 +152,25 @@ class SPINEL(object):
 
     # STREAM Properties
     PROP_STREAM__BEGIN = 0x70
+    PROP_STREAM_NET_INSECURE = PROP_STREAM__BEGIN + 1  # < [D] - Insecure network packets
     PROP_STREAM_NET = PROP_STREAM__BEGIN + 2  # < [D]
+    PROP_STREAM_DEBUG = PROP_STREAM__BEGIN + 3  # < [U] - Debug log messages from device
     PROP_STREAM__END = 0x80
 
     PROP_STREAM_EXT__BEGIN = 0x1700
     PROP_STREAM_EXT__END = 0x1800
+
+    # Vendor TCP Properties (TI Wi-SUN FAN specific) — all binary encoding
+    PROP_VENDOR_TCP__BEGIN = 0x3D00
+    PROP_VENDOR_TCP_SERVER_LISTEN = 0x3D01  # < SET [S] - uint16 port
+    PROP_VENDOR_TCP_CLIENT_CONNECT = 0x3D02 # < SET [6S] - IPv6 addr (16B) + uint16 port (2B) = 18B
+    PROP_VENDOR_TCP_SEND_ALL = 0x3D03       # < SET [d] - binary data with length prefix
+    PROP_VENDOR_TCP_SEND_TO = 0x3D04        # < SET [Cd] - uint8 slot + binary data with length prefix
+    PROP_VENDOR_TCP_STATUS = 0x3D05         # < GET [CCC] - mode(1B) + connected(1B) + client_count(1B)
+    PROP_VENDOR_TCP_DISCONNECT = 0x3D06     # < SET [] - no payload
+    PROP_VENDOR_TCP_STATUS_NOTIFY = 0x3D07  # < ASYNC [CC] - event(1B) + connected(1B)
+    PROP_VENDOR_TCP_DATA_RECV = 0x3D08      # < ASYNC [Sd] - uint16 len + raw data
+    PROP_VENDOR_TCP__END = 0x3D09
 
 
 class kThread(object):

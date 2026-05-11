@@ -617,6 +617,36 @@ class SpinelPropertyHandler(SpinelCodec):
     def STREAM_NET(self, _, payload):
         return self.parse_d(payload)
 
+    def STREAM_DEBUG(self, _, payload):
+        return self.parse_U(payload)
+
+    def STREAM_NET_INSECURE(self, _, payload):
+        return self.parse_d(payload)
+
+    # Vendor TCP property handlers
+    def VENDOR_TCP_STATUS(self, _, payload):
+        return self.parse_D(payload)           # raw bytes: mode(1B) + connected(1B) + client_count(1B)
+
+    def VENDOR_TCP_SERVER_LISTEN(self, _, payload):
+        return self.parse_D(payload)
+
+    def VENDOR_TCP_CLIENT_CONNECT(self, _, payload):
+        return self.parse_D(payload)
+
+    def VENDOR_TCP_SEND_ALL(self, _, payload):
+        return self.parse_D(payload)
+
+    def VENDOR_TCP_SEND_TO(self, _, payload):
+        return self.parse_D(payload)
+
+    def VENDOR_TCP_DISCONNECT(self, _, payload):
+        return self.parse_D(payload)
+
+    def VENDOR_TCP_STATUS_NOTIFY(self, _, payload):
+        return self.parse_D(payload)
+
+    def VENDOR_TCP_DATA_RECV(self, _, payload):
+        return self.parse_D(payload)
 
 
 #=========================================
@@ -789,6 +819,27 @@ SPINEL_PROP_DISPATCH = {
         WPAN_PROP_HANDLER.MULTICAST_LIST,
     SPINEL.PROP_STREAM_NET:
         WPAN_PROP_HANDLER.STREAM_NET,
+    SPINEL.PROP_STREAM_DEBUG:
+        WPAN_PROP_HANDLER.STREAM_DEBUG,
+    SPINEL.PROP_STREAM_NET_INSECURE:
+        WPAN_PROP_HANDLER.STREAM_NET_INSECURE,
+    # Vendor TCP properties
+    SPINEL.PROP_VENDOR_TCP_SERVER_LISTEN:
+        WPAN_PROP_HANDLER.VENDOR_TCP_SERVER_LISTEN,
+    SPINEL.PROP_VENDOR_TCP_CLIENT_CONNECT:
+        WPAN_PROP_HANDLER.VENDOR_TCP_CLIENT_CONNECT,
+    SPINEL.PROP_VENDOR_TCP_SEND_ALL:
+        WPAN_PROP_HANDLER.VENDOR_TCP_SEND_ALL,
+    SPINEL.PROP_VENDOR_TCP_SEND_TO:
+        WPAN_PROP_HANDLER.VENDOR_TCP_SEND_TO,
+    SPINEL.PROP_VENDOR_TCP_STATUS:
+        WPAN_PROP_HANDLER.VENDOR_TCP_STATUS,
+    SPINEL.PROP_VENDOR_TCP_DISCONNECT:
+        WPAN_PROP_HANDLER.VENDOR_TCP_DISCONNECT,
+    SPINEL.PROP_VENDOR_TCP_STATUS_NOTIFY:
+        WPAN_PROP_HANDLER.VENDOR_TCP_STATUS_NOTIFY,
+    SPINEL.PROP_VENDOR_TCP_DATA_RECV:
+        WPAN_PROP_HANDLER.VENDOR_TCP_DATA_RECV,
 }
 
 

@@ -459,7 +459,7 @@ class IPv6Packet(ConvertibleToBytes):
     Upper layer protocols:
         - ICMPv6
         - UDP
-        - TCP (not implemented in this module)
+        - TCP
 
     Example:
         IPv6 packet construction without extension headers:
@@ -663,6 +663,160 @@ class UDPDatagram(UpperLayerProtocol):
 
     def __len__(self):
         return len(self.header) + len(self.payload)
+
+
+class TCPHeader(ConvertibleToBytes, BuildableFromBytes):
+    """ Class representing TCP segment header.
+
+    This header is required to construct TCP segment.
+    TCP header is 20 bytes minimum (without options).
+    """
+
+    _header_length = 20
+
+    # TCP flag bits
+    FIN = 0x01
+    SYN = 0x02
+    RST = 0x04
+    PSH = 0x08
+    ACK = 0x10
+    URG = 0x20
+
+    def __init__(self, src_port, dst_port, seq_num=0, ack_num=0,
+                 data_offset=5, flags=0, window=8192, checksum=0,
+                 urgent_ptr=0, options=None):
+        self.src_port = src_port
+        self.dst_port = dst_port
+        self.seq_num = seq_num
+        self.ack_num = ack_num
+        self.data_offset = data_offset  # In 32-bit words (minimum 5)
+        self.flags = flags
+        self.window = window
+        self.checksum = checksum
+        self.urgent_ptr = urgent_ptr
+        self.options = options if options is not None else b''
+
+    @property
+    def type(self):
+        return 6  # TCP protocol number
+
+    def to_bytes(self):
+        data = struct.pack(">H", self.src_port)
+        data += struct.pack(">H", self.dst_port)
+        data += struct.pack(">I", self.seq_num)
+        data += struct.pack(">I", self.ack_num)
+
+        # Data offset (4 bits) and reserved (3 bits) and NS flag (1 bit)
+        data_offset_byte = (self.data_offset << 4) & 0xF0
+        data += struct.pack("B", data_offset_byte)
+
+        # TCP flags
+        data += struct.pack("B", self.flags)
+
+        data += struct.pack(">H", self.window)
+        data += struct.pack(">H", self.checksum)
+        data += struct.pack(">H", self.urgent_ptr)
+
+        # Add options if present
+        if self.options:
+            data += self.options
+            # Pad to 32-bit boundary
+            padding_needed = (4 - (len(self.options) % 4)) % 4
+            data += b'\x00' * padding_needed
+
+        return data
+
+    @classmethod
+    def from_bytes(cls, data):
+        src_port = struct.unpack(">H", data.read(2))[0]
+        dst_port = struct.unpack(">H", data.read(2))[0]
+        seq_num = struct.unpack(">I", data.read(4))[0]
+        ack_num = struct.unpack(">I", data.read(4))[0]
+
+        data_offset_byte = struct.unpack("B", data.read(1))[0]
+        data_offset = (data_offset_byte >> 4) & 0x0F
+
+        flags = struct.unpack("B", data.read(1))[0]
+
+        window = struct.unpack(">H", data.read(2))[0]
+        checksum = struct.unpack(">H", data.read(2))[0]
+        urgent_ptr = struct.unpack(">H", data.read(2))[0]
+
+        # Read options if data offset > 5
+        options = b''
+        if data_offset > 5:
+            options_length = (data_offset - 5) * 4
+            options = data.read(options_length)
+
+        return cls(src_port, dst_port, seq_num, ack_num, data_offset,
+                  flags, window, checksum, urgent_ptr, options)
+
+    def __len__(self):
+        return self.data_offset * 4
+
+    def set_flag(self, flag):
+        """Set a specific TCP flag."""
+        self.flags |= flag
+
+    def clear_flag(self, flag):
+        """Clear a specific TCP flag."""
+        self.flags &= ~flag
+
+    def has_flag(self, flag):
+        """Check if a specific TCP flag is set."""
+        return (self.flags & flag) != 0
+
+
+class TCPSegment(UpperLayerProtocol):
+    """ Class representing TCP segment.
+
+    TCP is an upper layer protocol for IPv6 so it can be passed to IPv6 packet as upper_layer_protocol.
+
+    This class consists of a TCP header and payload.
+
+    Example:
+        tcp_segment = TCPSegment(TCPHeader(src_port=50000, dst_port=50000,
+                                           seq_num=1000, ack_num=2000,
+                                           flags=TCPHeader.ACK | TCPHeader.PSH),
+                                 TCPBytesPayload(b"Hello TCP"))
+    """
+
+    @property
+    def type(self):
+        return 6  # TCP protocol number
+
+    def __init__(self, header, payload):
+        super(TCPSegment, self).__init__(header)
+        self.payload = payload
+
+    def to_bytes(self):
+        data = bytearray()
+        data += self.header.to_bytes()
+        if self.payload:
+            data += self.payload.to_bytes()
+        return data
+
+    def __len__(self):
+        payload_len = len(self.payload) if self.payload else 0
+        return len(self.header) + payload_len
+
+
+class TCPBytesPayload(ConvertibleToBytes, BuildableFromBytes):
+    """ Class representing TCP payload as raw bytes.
+    """
+
+    def __init__(self, data):
+        self.data = data if data is not None else b''
+
+    def to_bytes(self):
+        return self.data
+
+    @classmethod
+    def from_bytes(cls, data):
+        return cls(data.read())
+
+    def __len__(self):
+        return len(self.data)
 
 
 class ICMPv6Header(ConvertibleToBytes, BuildableFromBytes):
@@ -1633,6 +1787,50 @@ class CoAPFactory(PacketFactory):
         header = CoAPHeader.from_bytes(data)
         payload = CoAPPayload.from_bytes(data)
         return CoAP(header, payload)
+
+
+class TCPHeaderFactory:
+    """ Factory that produces TCP header. """
+
+    def parse(self, data, message_info):
+        return TCPHeader.from_bytes(data)
+
+
+class TCPSegmentFactory(PacketFactory):
+    """ Factory that produces TCP segments. """
+
+    def __init__(self, tcp_header_factory, dst_port_factories=None):
+        """
+        Args:
+            tcp_header_factory: Factory to parse TCP headers
+            dst_port_factories (dict): Factories parse TCP payload based on destination port.
+        """
+        self._tcp_header_factory = tcp_header_factory
+        self._dst_port_factories = dst_port_factories if dst_port_factories is not None else {}
+
+    def _get_payload_factory(self, dst_port):
+        try:
+            return self._dst_port_factories[dst_port]
+        except KeyError:
+            # Default to raw bytes payload if no specific factory
+            return TCPBytesPayloadFactory()
+
+    def parse(self, data, message_info):
+        tcp_header = self._tcp_header_factory.parse(data, message_info)
+
+        factory = self._get_payload_factory(tcp_header.dst_port)
+
+        message_info.payload_length += len(tcp_header) + (len(data.getvalue()) - data.tell())
+
+        payload = factory.parse(data, message_info) if data.tell() < len(data.getvalue()) else None
+        return TCPSegment(tcp_header, payload)
+
+
+class TCPBytesPayloadFactory(PacketFactory):
+    """ Factory that produces TCP payload as raw bytes. """
+
+    def parse(self, data, message_info):
+        return TCPBytesPayload(data.read())
 
 
 class UDPBytesPayload(ConvertibleToBytes, BuildableFromBytes):
